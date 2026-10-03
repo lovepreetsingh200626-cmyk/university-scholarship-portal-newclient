@@ -1,0 +1,285 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap');
+
+:root {
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+    color: #172033;
+    background: #f5f7fb;
+
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    margin: 0;
+    min-width: 320px;
+    min-height: 100vh;
+
+    background:
+        linear-gradient(
+            180deg,
+            #f8fafc 0%,
+            #f5f7fb 100%
+        );
+
+    color: #172033;
+}
+
+button,
+input,
+select,
+textarea {
+    font: inherit;
+}
+
+button {
+    cursor: pointer;
+}
+
+a {
+    color: inherit;
+    text-decoration: none;
+}
+
+img {
+    max-width: 100%;
+    display: block;
+}
+
+#root {
+    min-height: 100vh;
+}
+
+/* ============================================================
+   COMMON CONTAINER
+============================================================ */
+
+.portal-container {
+    width: 100%;
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 0 24px;
+}
+
+/* ============================================================
+   TYPOGRAPHY
+============================================================ */
+
+.portal-heading {
+    margin: 0;
+
+    font-family:
+        'Playfair Display',
+        Georgia,
+        serif;
+
+    color: #172033;
+}
+
+.portal-text {
+    color: #64748b;
+    line-height: 1.7;
+}
+
+/* ============================================================
+   BUTTONS
+============================================================ */
+
+.portal-button {
+    border: none;
+    border-radius: 8px;
+
+    padding: 11px 20px;
+
+    font-weight: 600;
+
+    transition:
+        transform 0.2s ease,
+        box-shadow 0.2s ease,
+        background 0.2s ease;
+}
+
+.portal-button:hover {
+    transform: translateY(-1px);
+}
+
+.portal-button-primary {
+    color: #ffffff;
+    background: #174a8b;
+
+    box-shadow:
+        0 4px 12px rgba(23, 74, 139, 0.18);
+}
+
+.portal-button-primary:hover {
+    background: #123c72;
+}
+
+.portal-button-secondary {
+    color: #174a8b;
+    background: #eaf1fb;
+}
+
+.portal-button-secondary:hover {
+    background: #dce8f8;
+}
+
+.portal-button-danger {
+    color: #ffffff;
+    background: #b42318;
+}
+
+.portal-button-danger:hover {
+    background: #941b12;
+}
+
+/* ============================================================
+   CARDS
+============================================================ */
+
+.portal-card {
+    background: #ffffff;
+
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+
+    box-shadow:
+        0 4px 18px rgba(15, 23, 42, 0.05);
+}
+
+/* ============================================================
+   FORM ELEMENTS
+============================================================ */
+
+.portal-label {
+    display: block;
+
+    margin-bottom: 7px;
+
+    color: #334155;
+
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.portal-input,
+.portal-select,
+.portal-textarea {
+    width: 100%;
+
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+
+    padding: 11px 13px;
+
+    outline: none;
+
+    background: #ffffff;
+    color: #172033;
+
+    transition:
+        border-color 0.2s ease,
+        box-shadow 0.2s ease;
+}
+
+.portal-input:focus,
+.portal-select:focus,
+.portal-textarea:focus {
+    border-color: #174a8b;
+
+    box-shadow:
+        0 0 0 3px rgba(23, 74, 139, 0.10);
+}
+
+.portal-textarea {
+    min-height: 110px;
+    resize: vertical;
+}
+
+/* ============================================================
+   STATUS BADGES
+============================================================ */
+
+.portal-status {
+    display: inline-flex;
+    align-items: center;
+
+    border-radius: 999px;
+
+    padding: 5px 10px;
+
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.portal-status-success {
+    color: #166534;
+    background: #dcfce7;
+}
+
+.portal-status-warning {
+    color: #92400e;
+    background: #fef3c7;
+}
+
+.portal-status-danger {
+    color: #991b1b;
+    background: #fee2e2;
+}
+
+.portal-status-info {
+    color: #1e40af;
+    background: #dbeafe;
+}
+
+.portal-status-neutral {
+    color: #475569;
+    background: #f1f5f9;
+}
+
+/* ============================================================
+   SCROLLBAR
+============================================================ */
+
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* ============================================================
+   RESPONSIVE
+============================================================ */
+
+@media (max-width: 768px) {
+    .portal-container {
+        padding: 0 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    .portal-container {
+        padding: 0 12px;
+    }
+}
