@@ -74,13 +74,29 @@ const AdminApplicationDetails = () => {
             setLoading(true);
             setError('');
 
+            const currentToken =
+                authService.getToken();
+
+            if (!currentToken) {
+                authService.logout();
+
+                navigate(
+                    '/login',
+                    {
+                        replace: true
+                    }
+                );
+
+                return;
+            }
+
             const response =
                 await API.get(
                     `/admin/applications/${id}`,
                     {
                         headers: {
                             Authorization:
-                                `Bearer ${token}`
+                                `Bearer ${currentToken}`
                         }
                     }
                 );
@@ -130,8 +146,18 @@ const AdminApplicationDetails = () => {
     ======================================================== */
 
     const handleViewDocument = async (
+        event,
         document
     ) => {
+        /*
+         * Prevent any parent click handler or
+         * accidental navigation from firing.
+         */
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+
         if (
             !document ||
             !document._id
@@ -160,9 +186,11 @@ const AdminApplicationDetails = () => {
         }
 
         /*
-         * Open a blank tab immediately.
-         * This prevents the browser from blocking
-         * the new tab after the asynchronous API request.
+         * Open the browser window immediately
+         * while still inside the user's click event.
+         *
+         * This avoids popup blockers after the
+         * asynchronous authenticated request.
          */
         const documentWindow =
             window.open(
@@ -178,41 +206,52 @@ const AdminApplicationDetails = () => {
             return;
         }
 
-        documentWindow.document.title =
-            'Loading Document...';
+        /*
+         * Show a temporary loading screen
+         * inside the new document window.
+         */
+        try {
+            documentWindow.document.title =
+                'Loading Document';
 
-        documentWindow.document.body.innerHTML = `
-            <div style="
-                font-family: Arial, sans-serif;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                min-height: 100vh;
-                margin: 0;
-                color: #475569;
-                background: #f8fafc;
-                text-align: center;
-                padding: 20px;
-                box-sizing: border-box;
-            ">
-                <div>
-                    <div style="
-                        font-size: 18px;
-                        font-weight: 600;
-                        margin-bottom: 8px;
-                    ">
-                        Loading document...
-                    </div>
+            documentWindow.document.body.innerHTML = `
+                <div style="
+                    font-family: Arial, sans-serif;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    min-height: 100vh;
+                    margin: 0;
+                    padding: 20px;
+                    box-sizing: border-box;
+                    background: #f8fafc;
+                    color: #475569;
+                    text-align: center;
+                ">
+                    <div>
+                        <div style="
+                            font-size: 18px;
+                            font-weight: 600;
+                            margin-bottom: 8px;
+                        ">
+                            Loading document...
+                        </div>
 
-                    <div style="
-                        font-size: 14px;
-                        color: #64748b;
-                    ">
-                        Please wait.
+                        <div style="
+                            font-size: 14px;
+                            color: #64748b;
+                        ">
+                            Please wait while the secure document is opened.
+                        </div>
                     </div>
                 </div>
-            </div>
-        `;
+            `;
+        } catch (windowError) {
+            console.error(
+                'Unable to prepare document window:',
+                windowError
+            );
+        }
 
         try {
             setViewingDocumentId(
@@ -221,6 +260,22 @@ const AdminApplicationDetails = () => {
 
             setError('');
 
+            /*
+             * IMPORTANT:
+             *
+             * Do NOT construct the backend URL manually.
+             *
+             * API already contains:
+             *
+             * Local:
+             * http://localhost:5000/api
+             *
+             * Vercel:
+             * https://university-scholarship-backend.vercel.app/api
+             *
+             * Therefore this same code works in
+             * both environments.
+             */
             const response =
                 await API.get(
                     `/applications/${id}/documents/${document._id}`,
@@ -229,12 +284,19 @@ const AdminApplicationDetails = () => {
                             Authorization:
                                 `Bearer ${currentToken}`
                         },
+
                         responseType:
-                            'blob'
+                            'blob',
+
+                        validateStatus:
+                            (status) =>
+                                status >= 200 &&
+                                status < 300
                     }
                 );
 
             if (
+                !response ||
                 !response.data
             ) {
                 throw new Error(
@@ -242,51 +304,88 @@ const AdminApplicationDetails = () => {
                 );
             }
 
+            /*
+             * Read the response content type.
+             */
             const contentType =
-                response.headers[
+                response.headers?.[
                     'content-type'
                 ] ||
                 document.contentType ||
                 'application/octet-stream';
 
             /*
-             * Create a browser object URL from
-             * the authenticated document response.
+             * If the backend accidentally returns
+             * JSON/HTML instead of the document,
+             * do not try to open it as a PDF/image.
              */
-            const blob =
-                new Blob(
-                    [
-                        response.data
-                    ],
-                    {
-                        type:
-                            contentType
-                    }
+            if (
+                contentType.includes(
+                    'text/html'
+                )
+            ) {
+                throw new Error(
+                    'The document service returned an invalid response.'
                 );
+            }
 
+            /*
+             * Axios with responseType:'blob'
+             * already gives us a Blob in browsers.
+             *
+             * Create a new Blob to guarantee the
+             * correct content type.
+             */
+            const documentBlob =
+                response.data instanceof Blob
+                    ? new Blob(
+                          [
+                              response.data
+                          ],
+                          {
+                              type:
+                                  contentType
+                          }
+                      )
+                    : new Blob(
+                          [
+                              response.data
+                          ],
+                          {
+                              type:
+                                  contentType
+                          }
+                      );
+
+            /*
+             * Create a temporary browser URL.
+             */
             const documentUrl =
                 window.URL.createObjectURL(
-                    blob
+                    documentBlob
                 );
 
             /*
              * Send the already-opened tab
-             * to the temporary authenticated
-             * document URL.
+             * to the authenticated document.
              */
-            documentWindow.location.href =
-                documentUrl;
+            documentWindow.location.replace(
+                documentUrl
+            );
 
             /*
-             * Keep the object URL available long
-             * enough for the browser to load it,
-             * then release it from memory.
+             * Release the temporary object URL
+             * after the browser has had enough time
+             * to load it.
              */
-            setTimeout(() => {
-                window.URL.revokeObjectURL(
-                    documentUrl
-                );
-            }, 60000);
+            window.setTimeout(
+                () => {
+                    window.URL.revokeObjectURL(
+                        documentUrl
+                    );
+                },
+                60000
+            );
 
         } catch (error) {
             console.error(
@@ -294,8 +393,17 @@ const AdminApplicationDetails = () => {
                 error
             );
 
+            /*
+             * Close the temporary tab only
+             * when opening the document failed.
+             */
             try {
-                documentWindow.close();
+                if (
+                    documentWindow &&
+                    !documentWindow.closed
+                ) {
+                    documentWindow.close();
+                }
             } catch (closeError) {
                 console.error(
                     'Unable to close document window:',
@@ -303,6 +411,9 @@ const AdminApplicationDetails = () => {
                 );
             }
 
+            /*
+             * Authentication expired.
+             */
             if (
                 error.response?.status === 401
             ) {
@@ -318,6 +429,10 @@ const AdminApplicationDetails = () => {
                 return;
             }
 
+            /*
+             * Admin is not authorized to view
+             * this document.
+             */
             if (
                 error.response?.status === 403
             ) {
@@ -328,6 +443,9 @@ const AdminApplicationDetails = () => {
                 return;
             }
 
+            /*
+             * Document does not exist.
+             */
             if (
                 error.response?.status === 404
             ) {
@@ -338,8 +456,22 @@ const AdminApplicationDetails = () => {
                 return;
             }
 
+            /*
+             * Network error.
+             */
+            if (
+                error.message ===
+                'Network Error'
+            ) {
+                setError(
+                    'Unable to connect to the document service. Please check the backend connection and try again.'
+                );
+
+                return;
+            }
+
             setError(
-                error.response?.data?.message ||
+                error.message ||
                 'Unable to open the document. Please try again.'
             );
 
@@ -436,6 +568,22 @@ const AdminApplicationDetails = () => {
             setError('');
             setSuccessMessage('');
 
+            const currentToken =
+                authService.getToken();
+
+            if (!currentToken) {
+                authService.logout();
+
+                navigate(
+                    '/login',
+                    {
+                        replace: true
+                    }
+                );
+
+                return;
+            }
+
             const response =
                 await API.put(
                     `/admin/applications/${id}/${action}`,
@@ -443,7 +591,7 @@ const AdminApplicationDetails = () => {
                     {
                         headers: {
                             Authorization:
-                                `Bearer ${token}`
+                                `Bearer ${currentToken}`
                         }
                     }
                 );
@@ -688,6 +836,7 @@ const AdminApplicationDetails = () => {
                         </p>
 
                         <button
+                            type="button"
                             className="portal-button portal-button-secondary"
                             onClick={() =>
                                 navigate(
@@ -851,6 +1000,7 @@ const AdminApplicationDetails = () => {
                     </div>
 
                     <button
+                        type="button"
                         className="portal-button portal-button-secondary"
                         onClick={() =>
                             navigate(
@@ -1260,9 +1410,9 @@ const AdminApplicationDetails = () => {
                                     label="Previous Percentage"
                                     value={
                                         applicant.previousPercentage !==
-                                        null &&
+                                            null &&
                                         applicant.previousPercentage !==
-                                        undefined
+                                            undefined
                                             ? `${applicant.previousPercentage}%`
                                             : 'Not provided'
                                     }
@@ -1479,8 +1629,11 @@ const AdminApplicationDetails = () => {
 
                                                 <button
                                                     type="button"
-                                                    onClick={() =>
+                                                    onClick={(
+                                                        event
+                                                    ) =>
                                                         handleViewDocument(
+                                                            event,
                                                             document
                                                         )
                                                     }
@@ -1809,6 +1962,7 @@ const AdminApplicationDetails = () => {
                             >
                                 {canStartVerification && (
                                     <button
+                                        type="button"
                                         className="portal-button portal-button-primary"
                                         onClick={
                                             handleStartVerification
@@ -1890,6 +2044,7 @@ const AdminApplicationDetails = () => {
                                         </div>
 
                                         <button
+                                            type="button"
                                             className="portal-button portal-button-secondary"
                                             onClick={
                                                 handleRequestCorrection
@@ -1955,6 +2110,7 @@ const AdminApplicationDetails = () => {
                                         </div>
 
                                         <button
+                                            type="button"
                                             className="portal-button portal-button-primary"
                                             onClick={
                                                 handleVerify
@@ -2016,6 +2172,7 @@ const AdminApplicationDetails = () => {
                                         </div>
 
                                         <button
+                                            type="button"
                                             className="portal-button portal-button-danger"
                                             onClick={
                                                 handleReject
@@ -2050,6 +2207,7 @@ const AdminApplicationDetails = () => {
 
                                 {canSanction && (
                                     <button
+                                        type="button"
                                         className="portal-button portal-button-primary"
                                         onClick={() =>
                                             performAction(
@@ -2085,6 +2243,7 @@ const AdminApplicationDetails = () => {
 
                                 {canDisburse && (
                                     <button
+                                        type="button"
                                         className="portal-button portal-button-primary"
                                         onClick={() =>
                                             performAction(
