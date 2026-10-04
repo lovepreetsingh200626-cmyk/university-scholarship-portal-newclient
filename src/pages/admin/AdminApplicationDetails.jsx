@@ -44,6 +44,9 @@ const AdminApplicationDetails = () => {
     const [actionLoading, setActionLoading] =
         useState(false);
 
+    const [viewingDocumentId, setViewingDocumentId] =
+        useState(null);
+
     const [error, setError] =
         useState('');
 
@@ -120,6 +123,232 @@ const AdminApplicationDetails = () => {
     useEffect(() => {
         fetchApplication();
     }, [id]);
+
+    /* ========================================================
+       VIEW DOCUMENT
+       SECURE AUTHENTICATED DOCUMENT VIEWING
+    ======================================================== */
+
+    const handleViewDocument = async (
+        document
+    ) => {
+        if (
+            !document ||
+            !document._id
+        ) {
+            setError(
+                'Unable to open this document.'
+            );
+
+            return;
+        }
+
+        const currentToken =
+            authService.getToken();
+
+        if (!currentToken) {
+            authService.logout();
+
+            navigate(
+                '/login',
+                {
+                    replace: true
+                }
+            );
+
+            return;
+        }
+
+        /*
+         * Open a blank tab immediately.
+         * This prevents the browser from blocking
+         * the new tab after the asynchronous API request.
+         */
+        const documentWindow =
+            window.open(
+                '',
+                '_blank'
+            );
+
+        if (!documentWindow) {
+            setError(
+                'Your browser blocked the document window. Please allow pop-ups for this portal and try again.'
+            );
+
+            return;
+        }
+
+        documentWindow.document.title =
+            'Loading Document...';
+
+        documentWindow.document.body.innerHTML = `
+            <div style="
+                font-family: Arial, sans-serif;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 100vh;
+                margin: 0;
+                color: #475569;
+                background: #f8fafc;
+                text-align: center;
+                padding: 20px;
+                box-sizing: border-box;
+            ">
+                <div>
+                    <div style="
+                        font-size: 18px;
+                        font-weight: 600;
+                        margin-bottom: 8px;
+                    ">
+                        Loading document...
+                    </div>
+
+                    <div style="
+                        font-size: 14px;
+                        color: #64748b;
+                    ">
+                        Please wait.
+                    </div>
+                </div>
+            </div>
+        `;
+
+        try {
+            setViewingDocumentId(
+                document._id
+            );
+
+            setError('');
+
+            const response =
+                await API.get(
+                    `/applications/${id}/documents/${document._id}`,
+                    {
+                        headers: {
+                            Authorization:
+                                `Bearer ${currentToken}`
+                        },
+                        responseType:
+                            'blob'
+                    }
+                );
+
+            if (
+                !response.data
+            ) {
+                throw new Error(
+                    'The server returned an empty document.'
+                );
+            }
+
+            const contentType =
+                response.headers[
+                    'content-type'
+                ] ||
+                document.contentType ||
+                'application/octet-stream';
+
+            /*
+             * Create a browser object URL from
+             * the authenticated document response.
+             */
+            const blob =
+                new Blob(
+                    [
+                        response.data
+                    ],
+                    {
+                        type:
+                            contentType
+                    }
+                );
+
+            const documentUrl =
+                window.URL.createObjectURL(
+                    blob
+                );
+
+            /*
+             * Send the already-opened tab
+             * to the temporary authenticated
+             * document URL.
+             */
+            documentWindow.location.href =
+                documentUrl;
+
+            /*
+             * Keep the object URL available long
+             * enough for the browser to load it,
+             * then release it from memory.
+             */
+            setTimeout(() => {
+                window.URL.revokeObjectURL(
+                    documentUrl
+                );
+            }, 60000);
+
+        } catch (error) {
+            console.error(
+                'Admin document viewing error:',
+                error
+            );
+
+            try {
+                documentWindow.close();
+            } catch (closeError) {
+                console.error(
+                    'Unable to close document window:',
+                    closeError
+                );
+            }
+
+            if (
+                error.response?.status === 401
+            ) {
+                authService.logout();
+
+                navigate(
+                    '/login',
+                    {
+                        replace: true
+                    }
+                );
+
+                return;
+            }
+
+            if (
+                error.response?.status === 403
+            ) {
+                setError(
+                    'You are not authorized to view this document.'
+                );
+
+                return;
+            }
+
+            if (
+                error.response?.status === 404
+            ) {
+                setError(
+                    'The requested document could not be found.'
+                );
+
+                return;
+            }
+
+            setError(
+                error.response?.data?.message ||
+                'Unable to open the document. Please try again.'
+            );
+
+        } finally {
+            setViewingDocumentId(
+                null
+            );
+        }
+    };
 
     /* ========================================================
        STATUS HELPERS
@@ -1159,7 +1388,7 @@ const AdminApplicationDetails = () => {
                                         ) => (
                                             <div
                                                 key={
-                                                    `${document.documentType}-${index}`
+                                                    `${document.documentType}-${document._id || index}`
                                                 }
                                                 style={{
                                                     border:
@@ -1248,31 +1477,66 @@ const AdminApplicationDetails = () => {
                                                     </div>
                                                 </div>
 
-                                                <a
-                                                    href={
-                                                        document.fileUrl
-                                                            ? `http://localhost:5000${document.fileUrl}`
-                                                            : '#'
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        handleViewDocument(
+                                                            document
+                                                        )
                                                     }
-                                                    target="_blank"
-                                                    rel="noreferrer"
+                                                    disabled={
+                                                        viewingDocumentId ===
+                                                        document._id
+                                                    }
                                                     className="portal-button portal-button-secondary"
                                                     style={{
                                                         display:
                                                             'inline-flex',
                                                         alignItems:
                                                             'center',
+                                                        justifyContent:
+                                                            'center',
                                                         gap:
-                                                            '7px'
+                                                            '7px',
+                                                        cursor:
+                                                            viewingDocumentId ===
+                                                            document._id
+                                                                ? 'wait'
+                                                                : 'pointer',
+                                                        opacity:
+                                                            viewingDocumentId ===
+                                                            document._id
+                                                                ? 0.65
+                                                                : 1
                                                     }}
                                                 >
-                                                    <ExternalLink
-                                                        size={
-                                                            16
-                                                        }
-                                                    />
-                                                    View Document
-                                                </a>
+                                                    {viewingDocumentId ===
+                                                    document._id ? (
+                                                        <>
+                                                            <Loader2
+                                                                size={
+                                                                    16
+                                                                }
+                                                                style={{
+                                                                    animation:
+                                                                        'adminApplicationSpin 1s linear infinite'
+                                                                }}
+                                                            />
+
+                                                            Opening...
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <ExternalLink
+                                                                size={
+                                                                    16
+                                                                }
+                                                            />
+
+                                                            View Document
+                                                        </>
+                                                    )}
+                                                </button>
                                             </div>
                                         )
                                     )

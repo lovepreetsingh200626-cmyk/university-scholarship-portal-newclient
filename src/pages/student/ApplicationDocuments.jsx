@@ -15,7 +15,8 @@ import {
     FileText,
     Send,
     AlertCircle,
-    Loader2
+    Loader2,
+    Eye
 } from 'lucide-react';
 
 import API from '../../services/api';
@@ -61,6 +62,11 @@ const ApplicationDocuments = () => {
         submittingApplication,
         setSubmittingApplication
     ] = useState(false);
+
+    const [
+        viewingDocument,
+        setViewingDocument
+    ] = useState('');
 
     const [
         successMessage,
@@ -391,6 +397,344 @@ const ApplicationDocuments = () => {
                         file
                 })
             );
+        };
+
+
+    /* ============================================================
+       VIEW / OPEN DOCUMENT
+    ============================================================ */
+
+    const handleViewDocument =
+        async (
+            document
+        ) => {
+
+            if (!document?._id) {
+
+                setError(
+                    'Document information is unavailable.'
+                );
+
+                return;
+            }
+
+
+            /*
+               Open the browser tab immediately.
+
+               This prevents popup blockers from
+               blocking the document viewer after
+               the asynchronous API request.
+            */
+
+            const newWindow =
+                window.open(
+                    '',
+                    '_blank'
+                );
+
+
+            try {
+
+                setViewingDocument(
+                    document._id
+                );
+
+                setError('');
+                setSuccessMessage('');
+
+
+                /*
+                   IMPORTANT:
+
+                   The backend no longer returns a
+                   Cloudinary URL.
+
+                   It now securely retrieves the
+                   private Cloudinary document and
+                   streams the actual PDF/image to us.
+
+                   Therefore we request the endpoint
+                   as a BLOB.
+                */
+
+                const response =
+                    await API.get(
+                        `/applications/${id}/documents/${document._id}`,
+                        {
+                            ...getAuthConfig(),
+
+                            responseType:
+                                'blob'
+                        }
+                    );
+
+
+                /*
+                   Axios gives us the document itself
+                   as a Blob.
+
+                   We still explicitly assign the
+                   correct MIME type because this makes
+                   browser rendering more reliable.
+                */
+
+                const contentType =
+                    document.contentType ||
+                    response.headers[
+                        'content-type'
+                    ] ||
+                    'application/octet-stream';
+
+
+                /*
+                   Convert the received binary data
+                   into a browser Blob with the correct
+                   MIME type.
+                */
+
+                const documentBlob =
+                    new Blob(
+                        [
+                            response.data
+                        ],
+                        {
+                            type:
+                                contentType
+                        }
+                    );
+
+
+                /*
+                   Create a temporary browser URL.
+
+                   PDF:
+                   Opens in browser PDF viewer.
+
+                   JPG / PNG:
+                   Opens as an image.
+                */
+
+                const documentUrl =
+                    URL.createObjectURL(
+                        documentBlob
+                    );
+
+
+                /*
+                   Send the already-opened tab to
+                   the temporary document URL.
+                */
+
+                if (
+                    newWindow &&
+                    !newWindow.closed
+                ) {
+
+                    newWindow.location.href =
+                        documentUrl;
+
+                } else {
+
+                    /*
+                       Fallback if the browser did
+                       not allow the first tab.
+                    */
+
+                    const fallbackWindow =
+                        window.open(
+                            documentUrl,
+                            '_blank'
+                        );
+
+                    if (
+                        !fallbackWindow
+                    ) {
+
+                        setError(
+                            'Your browser blocked the document window. Please allow pop-ups for this portal.'
+                        );
+                    }
+                }
+
+
+                /*
+                   Release the temporary browser
+                   object URL after enough time for
+                   the document viewer to load.
+                */
+
+                setTimeout(
+                    () => {
+
+                        URL.revokeObjectURL(
+                            documentUrl
+                        );
+
+                    },
+                    5 * 60 * 1000
+                );
+
+
+            } catch (requestError) {
+
+                console.error(
+                    'View document error:',
+                    requestError
+                );
+
+
+                if (
+                    newWindow &&
+                    !newWindow.closed
+                ) {
+
+                    newWindow.close();
+                }
+
+
+                /*
+                   Axios errors are handled here.
+
+                   Because the response is configured
+                   as a Blob, error responses can also
+                   arrive as Blob data.
+                */
+
+                if (
+                    requestError.response?.status ===
+                    401
+                ) {
+
+                    authService.logout();
+
+                    navigate(
+                        '/login',
+                        {
+                            replace: true
+                        }
+                    );
+
+                    return;
+                }
+
+
+                if (
+                    requestError.response?.status ===
+                    403
+                ) {
+
+                    setError(
+                        'You are not authorized to view this document.'
+                    );
+
+                    return;
+                }
+
+
+                if (
+                    requestError.response?.status ===
+                    404
+                ) {
+
+                    setError(
+                        'The requested document could not be found.'
+                    );
+
+                    return;
+                }
+
+
+                if (
+                    requestError.response?.status ===
+                    410
+                ) {
+
+                    setError(
+                        'This document belongs to an older storage system and is no longer available.'
+                    );
+
+                    return;
+                }
+
+
+                if (
+                    requestError.response?.status ===
+                    502
+                ) {
+
+                    setError(
+                        'The secure document storage service could not retrieve this document.'
+                    );
+
+                    return;
+                }
+
+
+                /*
+                   If the server returned a normal
+                   JSON error instead of a document,
+                   try to read its message.
+                */
+
+                let serverMessage = '';
+
+
+                try {
+
+                    const responseData =
+                        requestError.response?.data;
+
+
+                    if (
+                        responseData instanceof Blob
+                    ) {
+
+                        const text =
+                            await responseData.text();
+
+                        if (text) {
+
+                            const parsed =
+                                JSON.parse(
+                                    text
+                                );
+
+                            serverMessage =
+                                parsed?.message ||
+                                '';
+                        }
+
+                    } else if (
+                        responseData?.message
+                    ) {
+
+                        serverMessage =
+                            responseData.message;
+                    }
+
+                } catch (
+                    parseError
+                ) {
+
+                    console.error(
+                        'Document error response parsing error:',
+                        parseError
+                    );
+                }
+
+
+                setError(
+                    serverMessage ||
+                    requestError.message ||
+                    'Unable to open document.'
+                );
+
+            } finally {
+
+                setViewingDocument('');
+
+            }
         };
 
 
@@ -1286,6 +1630,10 @@ const ApplicationDocuments = () => {
                                     uploadingDocument ===
                                     documentType;
 
+                                const isViewing =
+                                    viewingDocument ===
+                                    uploadedDocument?._id;
+
 
                                 return (
 
@@ -1457,16 +1805,105 @@ const ApplicationDocuments = () => {
                                                     color:
                                                         '#475569',
                                                     fontSize:
-                                                        '13px'
+                                                        '13px',
+                                                    display:
+                                                        'flex',
+                                                    alignItems:
+                                                        'center',
+                                                    justifyContent:
+                                                        'space-between',
+                                                    gap:
+                                                        '12px',
+                                                    flexWrap:
+                                                        'wrap'
                                                 }}
                                             >
-                                                File:{' '}
-                                                <strong>
-                                                    {
-                                                        uploadedDocument
-                                                            .fileName
+
+                                                <div
+                                                    style={{
+                                                        minWidth:
+                                                            0,
+                                                        overflow:
+                                                            'hidden',
+                                                        textOverflow:
+                                                            'ellipsis'
+                                                    }}
+                                                >
+                                                    File:{' '}
+                                                    <strong>
+                                                        {
+                                                            uploadedDocument
+                                                                .fileName
+                                                        }
+                                                    </strong>
+                                                </div>
+
+
+                                                <button
+                                                    type="button"
+                                                    className="portal-button portal-button-secondary"
+                                                    disabled={
+                                                        isViewing
                                                     }
-                                                </strong>
+                                                    onClick={() =>
+                                                        handleViewDocument(
+                                                            uploadedDocument
+                                                        )
+                                                    }
+                                                    style={{
+                                                        flexShrink:
+                                                            0,
+                                                        opacity:
+                                                            isViewing
+                                                                ? 0.65
+                                                                : 1
+                                                    }}
+                                                >
+
+                                                    {isViewing ? (
+
+                                                        <>
+                                                            <Loader2
+                                                                size={
+                                                                    15
+                                                                }
+                                                                style={{
+                                                                    marginRight:
+                                                                        '7px',
+                                                                    verticalAlign:
+                                                                        'middle',
+                                                                    animation:
+                                                                        'spin 1s linear infinite'
+                                                                }}
+                                                            />
+
+                                                            Opening...
+
+                                                        </>
+
+                                                    ) : (
+
+                                                        <>
+                                                            <Eye
+                                                                size={
+                                                                    15
+                                                                }
+                                                                style={{
+                                                                    marginRight:
+                                                                        '7px',
+                                                                    verticalAlign:
+                                                                        'middle'
+                                                                }}
+                                                            />
+
+                                                            View Document
+
+                                                        </>
+
+                                                    )}
+
+                                                </button>
+
                                             </div>
                                         )}
 
@@ -1744,9 +2181,6 @@ const ApplicationDocuments = () => {
 
                 {/* =================================================
                     SUBMIT APPLICATION
-
-                    IMPORTANT:
-                    THIS SECTION IS ALWAYS VISIBLE.
                 ================================================== */}
 
                 <div
