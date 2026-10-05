@@ -1,4 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, {
+    useEffect,
+    useState
+} from 'react';
 
 import {
     ArrowLeft,
@@ -46,105 +49,114 @@ const ScholarshipDetails = () => {
 
     useEffect(() => {
 
+        let isMounted = true;
+
+        const loadScholarship = async () => {
+
+            try {
+
+                setLoading(true);
+                setError('');
+
+                const token =
+                    authService.getToken();
+
+                if (!token) {
+                    navigate('/login');
+                    return;
+                }
+
+                if (!id) {
+
+                    if (isMounted) {
+                        setError(
+                            'Scholarship information could not be found.'
+                        );
+                    }
+
+                    return;
+                }
+
+                const response =
+                    await API.get(
+                        `/scholarships/${id}`
+                    );
+
+                if (
+                    response.data &&
+                    response.data.scholarship
+                ) {
+
+                    if (isMounted) {
+                        setScholarship(
+                            response.data.scholarship
+                        );
+                    }
+
+                } else {
+
+                    if (isMounted) {
+                        setError(
+                            'Scholarship information could not be found.'
+                        );
+                    }
+
+                }
+
+            } catch (error) {
+
+                console.error(
+                    'Scholarship details error:',
+                    error
+                );
+
+                if (
+                    error.response &&
+                    error.response.status === 401
+                ) {
+
+                    authService.logout();
+
+                    navigate('/login');
+
+                    return;
+                }
+
+                if (
+                    isMounted &&
+                    error.response &&
+                    error.response.data &&
+                    error.response.data.message
+                ) {
+
+                    setError(
+                        error.response.data.message
+                    );
+
+                } else if (isMounted) {
+
+                    setError(
+                        'Unable to load scholarship details. Please try again.'
+                    );
+
+                }
+
+            } finally {
+
+                if (isMounted) {
+                    setLoading(false);
+                }
+
+            }
+        };
+
         loadScholarship();
 
-    }, [id]);
+        return () => {
+            isMounted = false;
+        };
 
-    const loadScholarship = async () => {
-
-        try {
-
-            setLoading(true);
-            setError('');
-
-            const token =
-                authService.getToken();
-
-            if (!token) {
-                navigate('/login');
-                return;
-            }
-
-            if (!id) {
-
-                setError(
-                    'Scholarship information could not be found.'
-                );
-
-                return;
-            }
-
-            const response =
-                await API.get(
-                    `/scholarships/${id}`,
-                    {
-                        headers: {
-                            Authorization:
-                                `Bearer ${token}`
-                        }
-                    }
-                );
-
-            if (
-                response.data &&
-                response.data.scholarship
-            ) {
-
-                setScholarship(
-                    response.data.scholarship
-                );
-
-            } else {
-
-                setError(
-                    'Scholarship information could not be found.'
-                );
-
-            }
-
-        } catch (error) {
-
-            console.error(
-                'Scholarship details error:',
-                error
-            );
-
-            if (
-                error.response &&
-                error.response.status === 401
-            ) {
-
-                authService.logout();
-
-                navigate('/login');
-
-                return;
-            }
-
-            if (
-                error.response &&
-                error.response.data &&
-                error.response.data.message
-            ) {
-
-                setError(
-                    error.response.data.message
-                );
-
-            } else {
-
-                setError(
-                    'Unable to load scholarship details. Please try again.'
-                );
-
-            }
-
-        } finally {
-
-            setLoading(false);
-
-        }
-    };
+    }, [id, navigate]);
 
     /* ========================================================
        DATE FORMATTER
@@ -475,6 +487,7 @@ const ScholarshipDetails = () => {
                                 )
                             }
                         >
+
                             <ArrowLeft
                                 size={16}
                                 style={{
@@ -485,6 +498,7 @@ const ScholarshipDetails = () => {
                             />
 
                             Back to Scholarships
+
                         </button>
 
                     </div>
@@ -652,6 +666,7 @@ const ScholarshipDetails = () => {
                             )
                         }
                     >
+
                         <ArrowLeft
                             size={16}
                             style={{
@@ -662,6 +677,7 @@ const ScholarshipDetails = () => {
                         />
 
                         Back
+
                     </button>
 
                 </div>
@@ -733,9 +749,11 @@ const ScholarshipDetails = () => {
                                             '#174a8b'
                                     }}
                                 >
+
                                     <GraduationCap
                                         size={27}
                                     />
+
                                 </div>
 
                                 <div>
@@ -757,13 +775,17 @@ const ScholarshipDetails = () => {
                                         <span
                                             className="portal-status portal-status-success"
                                         >
-                                            {scholarship.status}
+                                            {
+                                                scholarship.status
+                                            }
                                         </span>
 
                                         <span
                                             className="portal-status portal-status-info"
                                         >
-                                            {scholarship.academicYear}
+                                            {
+                                                scholarship.academicYear
+                                            }
                                         </span>
 
                                     </div>
@@ -916,6 +938,7 @@ const ScholarshipDetails = () => {
                                         1.6
                                 }}
                             >
+
                                 {
                                     formatDate(
                                         scholarship.applicationStartDate
@@ -929,6 +952,7 @@ const ScholarshipDetails = () => {
                                         scholarship.applicationEndDate
                                     )
                                 }
+
                             </strong>
 
                         </div>
@@ -1214,16 +1238,18 @@ const ScholarshipDetails = () => {
                                                         '17px'
                                                 }}
                                             >
-                                                {scholarship.maximumFamilyIncome !==
-                                                    null &&
-                                                scholarship.maximumFamilyIncome !==
-                                                    undefined
-                                                    ? `₹${Number(
-                                                        scholarship.maximumFamilyIncome
-                                                    ).toLocaleString(
-                                                        'en-IN'
-                                                    )}`
-                                                    : 'No limit specified'}
+                                                {
+                                                    scholarship.maximumFamilyIncome !==
+                                                        null &&
+                                                    scholarship.maximumFamilyIncome !==
+                                                        undefined
+                                                        ? `₹${Number(
+                                                            scholarship.maximumFamilyIncome
+                                                        ).toLocaleString(
+                                                            'en-IN'
+                                                        )}`
+                                                        : 'No limit specified'
+                                                }
                                             </strong>
 
                                         </div>
@@ -1573,13 +1599,18 @@ const ScholarshipDetails = () => {
                                 disabled={
                                     !applicationOpen
                                 }
-onClick={() => {
-    if (applicationOpen) {
-        navigate(
-            `/student/scholarships/${id}/eligibility`
-        );
-    }
-}}                                style={{
+                                onClick={() => {
+
+                                    if (applicationOpen) {
+
+                                        navigate(
+                                            `/student/scholarships/${id}/eligibility`
+                                        );
+
+                                    }
+
+                                }}
+                                style={{
                                     width: '100%',
                                     opacity:
                                         applicationOpen

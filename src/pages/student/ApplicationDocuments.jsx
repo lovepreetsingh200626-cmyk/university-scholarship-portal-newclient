@@ -13,6 +13,7 @@ import {
     CheckCircle2,
     Upload,
     FileText,
+    Download,
     Send,
     AlertCircle,
     Loader2,
@@ -22,6 +23,79 @@ import {
 import API from '../../services/api';
 
 import authService from '../../services/authService';
+
+
+const APPLICANT_DETAIL_GROUPS = [
+    {
+        title: 'Application and Personal Details',
+        fields: [
+            { name: 'applicationType', label: 'Application Type', type: 'select', options: ['Fresh Application', 'Renewal Application'], required: true },
+            { name: 'studentId', label: 'Student ID', readOnly: true, required: true },
+            { name: 'fullName', label: 'Student Name', readOnly: true, required: true },
+            { name: 'gender', label: 'Gender', type: 'select', options: ['Male', 'Female', 'Other'], required: true },
+            { name: 'fatherName', label: "Father's Name", readOnly: true, required: true },
+            { name: 'motherName', label: "Mother's Name", readOnly: true, required: true },
+            { name: 'familyIncome', label: 'Annual Income', type: 'number', readOnly: true, required: true },
+            { name: 'dateOfBirth', label: 'Date of Birth', type: 'date', readOnly: true, required: true },
+            { name: 'category', label: 'Category', readOnly: true, required: true },
+            { name: 'religion', label: 'Religion', required: true },
+            { name: 'specialCategory', label: 'Special Category', required: true },
+            { name: 'aadhaarNumber', label: 'Aadhaar (UID) Number', readOnly: true, required: true },
+            { name: 'deNotifiedTribes', label: 'De-Notified Tribes', type: 'select', options: ['No', 'Yes'], required: true },
+            { name: 'tribes', label: 'Tribes', required: true }
+        ]
+    },
+    {
+        title: 'Academic Details',
+        fields: [
+            { name: 'institute', label: 'Institute', required: true },
+            { name: 'tehsil', label: 'Tehsil', required: true },
+            { name: 'course', label: 'Course', readOnly: true, required: true },
+            { name: 'department', label: 'Branch / Department', readOnly: true, required: true },
+            { name: 'academicYear', label: 'Academic Year', required: true },
+            { name: 'hosteller', label: 'Hosteller', type: 'select', options: ['No', 'Yes'], required: true },
+            { name: 'class10Board', label: '10th Class Board', required: true },
+            { name: 'class10Session', label: '10th Class Session', required: true },
+            { name: 'class10RollNumber', label: '10th Class Roll Number', required: true },
+            { name: 'enrollment', label: 'Enrollment Number', required: true },
+            { name: 'admissionDate', label: 'Admission Date', type: 'date', required: true },
+            { name: 'attendance', label: 'Attendance (%)', type: 'number', required: true },
+            { name: 'admitCard', label: 'Admit Card Number', required: true },
+            { name: 'examinationYear', label: 'Examination Year', required: true },
+            { name: 'promoted', label: 'Promoted', type: 'select', options: ['Yes', 'No'], required: true },
+            { name: 'previousPercentage', label: 'Previous Percentage', type: 'number' }
+        ]
+    },
+    {
+        title: 'Contact Details',
+        fields: [
+            { name: 'correspondenceAddress', label: 'Correspondence Address', type: 'textarea', required: true },
+            { name: 'permanentAddress', label: 'Permanent Address', type: 'textarea', required: true },
+            { name: 'contactNumbers', label: 'Contact Numbers', required: true },
+            { name: 'emailAddress', label: 'Email Address', type: 'email', readOnly: true, required: true }
+        ]
+    },
+    {
+        title: 'Bank Details',
+        fields: [
+            { name: 'bankAccountNumber', label: 'Account Number', required: true },
+            { name: 'bankName', label: 'Bank Name', required: true },
+            { name: 'ifscCode', label: 'IFSC Code', required: true },
+            { name: 'bankAddress', label: 'Bank Address', type: 'textarea', required: true },
+            { name: 'bankBranchName', label: 'Bank Branch Name', required: true }
+        ]
+    },
+    {
+        title: 'Declaration',
+        fields: [
+            { name: 'declarationAccepted', label: 'Declaration', helpText: 'I declare that the information is true and understand that incorrect details may lead to recovery of the scholarship and further action.', type: 'checkbox', required: true, wide: true }
+        ]
+    }
+];
+
+const APPLICANT_DETAIL_FIELDS = APPLICANT_DETAIL_GROUPS.flatMap(
+    (group) => group.fields
+);
 
 
 const ApplicationDocuments = () => {
@@ -78,6 +152,18 @@ const ApplicationDocuments = () => {
         setSelectedFiles
     ] = useState({});
 
+    const [applicantDetails, setApplicantDetails] =
+        useState({});
+
+    const [savingApplicantDetails, setSavingApplicantDetails] =
+        useState(false);
+
+    const [applicationStep, setApplicationStep] =
+        useState('details');
+
+    const [downloadingApplicationPdf, setDownloadingApplicationPdf] =
+        useState(false);
+
 
     /* ============================================================
        AUTH TOKEN
@@ -126,6 +212,41 @@ const ApplicationDocuments = () => {
                         response.data.application
                     );
 
+                    const loadedApplication = response.data.application;
+                    const details = loadedApplication?.applicantDetails || {};
+                    const loadedStatus = String(loadedApplication?.status || '')
+                        .trim()
+                        .toUpperCase();
+                    const canUpdateDetails = [
+                        'DRAFT',
+                        'CORRECTION REQUIRED'
+                    ].includes(loadedStatus);
+
+                    setApplicationStep(
+                        !canUpdateDetails || Boolean(details.declarationAccepted)
+                            ? 'documents'
+                            : 'details'
+                    );
+
+                    setApplicantDetails(
+                        Object.fromEntries(
+                            APPLICANT_DETAIL_FIELDS.map(({ name, type }) => {
+                                const value = details[name];
+
+                                return [
+                                    name,
+                                    value === null || value === undefined
+                                        ? ''
+                                        : type === 'checkbox'
+                                            ? Boolean(value)
+                                        : type === 'date'
+                                            ? String(value).substring(0, 10)
+                                            : String(value)
+                                ];
+                            })
+                        )
+                    );
+
                 } else {
 
                     setError(
@@ -168,6 +289,134 @@ const ApplicationDocuments = () => {
 
             }
         };
+
+
+    /* ============================================================
+       SAVE APPLICANT DETAILS
+    ============================================================ */
+
+    const handleApplicantDetailsChange = (event) => {
+        const { name, value, checked, type } = event.target;
+
+        setApplicantDetails((previous) => ({
+            ...previous,
+            [name]: type === 'checkbox' ? checked : value
+        }));
+    };
+
+
+    const handleSaveApplicantDetails = async (event) => {
+        event.preventDefault();
+        setError('');
+        setSuccessMessage('');
+
+        const semester = applicantDetails.currentSemester;
+        if (
+            semester &&
+            (!Number.isInteger(Number(semester)) ||
+                Number(semester) < 1 ||
+                Number(semester) > 20)
+        ) {
+            setError('Current semester must be a whole number between 1 and 20.');
+            return;
+        }
+
+        const income = applicantDetails.familyIncome;
+        if (income && (!Number.isFinite(Number(income)) || Number(income) < 0)) {
+            setError('Family income must be a valid non-negative number.');
+            return;
+        }
+
+        const percentage = applicantDetails.previousPercentage;
+        if (
+            percentage &&
+            (!Number.isFinite(Number(percentage)) ||
+                Number(percentage) < 0 ||
+                Number(percentage) > 100)
+        ) {
+            setError('Previous percentage must be between 0 and 100.');
+            return;
+        }
+
+        const attendance = applicantDetails.attendance;
+        if (
+            attendance !== '' &&
+            attendance !== null &&
+            attendance !== undefined &&
+            (!Number.isFinite(Number(attendance)) || Number(attendance) < 0 || Number(attendance) > 100)
+        ) {
+            setError('Attendance must be a number between 0 and 100.');
+            return;
+        }
+
+        const payload = { ...applicantDetails };
+        ['currentSemester', 'familyIncome', 'previousPercentage', 'attendance'].forEach((field) => {
+            if (payload[field] !== '' && payload[field] !== null && payload[field] !== undefined) {
+                payload[field] = Number(payload[field]);
+            }
+        });
+
+        try {
+            setSavingApplicantDetails(true);
+
+            const response = await API.put(
+                `/applications/${id}`,
+                payload,
+                getAuthConfig()
+            );
+
+            if (response.data?.success) {
+                setApplication((previous) => ({
+                    ...previous,
+                    applicantDetails:
+                        response.data.application?.applicantDetails || payload
+                }));
+                setApplicationStep('documents');
+                setSuccessMessage('Application details saved. Continue by uploading the required documents.');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            } else {
+                setError(
+                    response.data?.message ||
+                    'Unable to update application details.'
+                );
+            }
+        } catch (requestError) {
+            if (requestError.response?.status === 401) {
+                authService.logout();
+                navigate('/login', { replace: true });
+                return;
+            }
+
+            setError(
+                requestError.response?.data?.message ||
+                'Unable to update application details.'
+            );
+        } finally {
+            setSavingApplicantDetails(false);
+        }
+    };
+
+    const downloadApplicationPdf = async () => {
+        try {
+            setDownloadingApplicationPdf(true);
+            const response = await API.get(`/applications/${id}/pdf`, {
+                ...getAuthConfig(),
+                responseType: 'blob'
+            });
+            const objectUrl = URL.createObjectURL(response.data);
+            const anchor = document.createElement('a');
+            anchor.href = objectUrl;
+            anchor.download = `${application?.applicationNumber || 'scholarship-application'}.pdf`;
+            document.body.appendChild(anchor);
+            anchor.click();
+            anchor.remove();
+            window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+        } catch (requestError) {
+            setError(requestError.response?.data?.message || 'Unable to download the application PDF. Save the latest details and try again.');
+        } finally {
+            setDownloadingApplicationPdf(false);
+        }
+    };
 
 
     /* ============================================================
@@ -218,6 +467,11 @@ const ApplicationDocuments = () => {
 
     const applicationStatus =
         getNormalizedStatus();
+
+    const canEditApplicantDetails = [
+        'DRAFT',
+        'CORRECTION REQUIRED'
+    ].includes(applicationStatus);
 
 
     /* ============================================================
@@ -271,8 +525,7 @@ const ApplicationDocuments = () => {
 
             return [
                 'DRAFT',
-                'CORRECTION REQUIRED',
-                'RESUBMITTED'
+                'CORRECTION REQUIRED'
             ].includes(
                 applicationStatus
             );
@@ -288,8 +541,7 @@ const ApplicationDocuments = () => {
 
             return [
                 'DRAFT',
-                'CORRECTION REQUIRED',
-                'RESUBMITTED'
+                'CORRECTION REQUIRED'
             ].includes(
                 applicationStatus
             );
@@ -879,8 +1131,9 @@ const ApplicationDocuments = () => {
             } catch (requestError) {
 
                 console.error(
-                    'Document upload error:',
-                    requestError
+                    'Document upload failed:',
+                    requestError.response?.data ||
+                    requestError.message
                 );
 
 
@@ -1244,34 +1497,35 @@ const ApplicationDocuments = () => {
                                 fontSize: '24px'
                             }}
                         >
-                            Application Documents
+                            {canEditApplicantDetails && applicationStep === 'details'
+                                ? 'Application Details'
+                                : 'Application Documents'}
                         </h1>
 
                     </div>
 
 
-                    <button
-                        type="button"
-                        className="portal-button portal-button-secondary"
-                        onClick={() =>
-                            navigate(
-                                '/student/applications'
-                            )
-                        }
-                    >
-
-                        <ArrowLeft
-                            size={16}
-                            style={{
-                                marginRight: '7px',
-                                verticalAlign:
-                                    'middle'
-                            }}
-                        />
-
-                        Back
-
-                    </button>
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                        {application && (
+                            <button
+                                type="button"
+                                className="portal-button portal-button-secondary"
+                                onClick={downloadApplicationPdf}
+                                disabled={downloadingApplicationPdf}
+                            >
+                                <Download size={16} style={{ marginRight: 7, verticalAlign: 'middle' }} />
+                                {downloadingApplicationPdf ? 'Preparing PDF...' : 'Download Application PDF'}
+                            </button>
+                        )}
+                        <button
+                            type="button"
+                            className="portal-button portal-button-secondary"
+                            onClick={() => navigate('/student/applications')}
+                        >
+                            <ArrowLeft size={16} style={{ marginRight: '7px', verticalAlign: 'middle' }} />
+                            Back
+                        </button>
+                    </div>
 
                 </div>
 
@@ -1497,6 +1751,187 @@ const ApplicationDocuments = () => {
                 )}
 
 
+                {/* =================================================
+                    APPLICATION STEPS
+                ================================================== */}
+
+                {canEditApplicantDetails && (
+                    <div
+                        className="portal-card"
+                        style={{
+                            padding: '17px 20px',
+                            marginBottom: '18px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '14px',
+                            flexWrap: 'wrap'
+                        }}
+                    >
+                        <div>
+                            <div style={{ color: '#174a8b', fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                Step {applicationStep === 'details' ? '1' : '2'} of 2
+                            </div>
+                            <strong style={{ display: 'block', marginTop: '4px', color: '#172033' }}>
+                                {applicationStep === 'details' ? 'Application details' : 'Required documents'}
+                            </strong>
+                            <span style={{ display: 'block', marginTop: '3px', color: '#64748b', fontSize: '13px' }}>
+                                {applicationStep === 'details'
+                                    ? 'Save your details to continue to document uploads.'
+                                    : 'Your details are saved. Upload each required document to continue.'}
+                            </span>
+                        </div>
+                        {applicationStep === 'documents' && (
+                            <button
+                                type="button"
+                                className="portal-button portal-button-secondary"
+                                onClick={() => {
+                                    setSuccessMessage('');
+                                    setApplicationStep('details');
+                                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                                }}
+                            >
+                                <ArrowLeft size={16} style={{ marginRight: '7px', verticalAlign: 'middle' }} />
+                                Edit Application Details
+                            </button>
+                        )}
+                    </div>
+                )}
+
+                {/* =================================================
+                    EDIT APPLICATION DETAILS
+                ================================================== */}
+
+                {canEditApplicantDetails && applicationStep === 'details' && (
+                    <form
+                        className="portal-card"
+                        onSubmit={handleSaveApplicantDetails}
+                        style={{
+                            padding: '24px',
+                            marginBottom: '22px'
+                        }}
+                    >
+                        <h2
+                            className="portal-heading"
+                            style={{ fontSize: '21px', marginBottom: '6px' }}
+                        >
+                            Applicant Details
+                        </h2>
+                        <p
+                            className="portal-text"
+                            style={{ marginTop: 0, marginBottom: '20px' }}
+                        >
+                            Review and update the information saved with this application.
+                            These fields can be changed while the application is a draft
+                            or requires correction.
+                        </p>
+
+                        <div
+                            style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                                gap: '16px'
+                            }}
+                        >
+                            {APPLICANT_DETAIL_GROUPS.map((group) => (
+                                <React.Fragment key={group.title}>
+                                    <h3
+                                        style={{
+                                            gridColumn: '1 / -1',
+                                            margin: '18px 0 0',
+                                            paddingBottom: '8px',
+                                            borderBottom: '1px solid #e2e8f0',
+                                            color: '#174a8b',
+                                            fontSize: '16px'
+                                        }}
+                                    >
+                                        {group.title}
+                                    </h3>
+                                    {group.fields.map((field) => (
+                                        <div
+                                            className="form-group"
+                                            key={field.name}
+                                            style={field.wide || field.type === 'textarea'
+                                                ? { gridColumn: '1 / -1' }
+                                                : undefined}
+                                        >
+                                            <label
+                                                className="portal-label"
+                                                htmlFor={`applicant-${field.name}`}
+                                            >
+                                                {field.label}{field.required && <span aria-hidden="true"> *</span>}
+                                            </label>
+                                            {field.type === 'textarea' ? (
+                                                <textarea
+                                                    id={`applicant-${field.name}`}
+                                                    name={field.name}
+                                                    className="portal-input"
+                                                    rows={3}
+                                                    value={applicantDetails[field.name] || ''}
+                                                    onChange={handleApplicantDetailsChange}
+                                                    readOnly={field.readOnly}
+                                                />
+                                            ) : field.type === 'select' ? (
+                                                <select
+                                                    id={`applicant-${field.name}`}
+                                                    name={field.name}
+                                                    className="portal-input"
+                                                    value={applicantDetails[field.name] || ''}
+                                                    onChange={handleApplicantDetailsChange}
+                                                    disabled={field.readOnly}
+                                                >
+                                                    <option value="">Select {field.label.toLowerCase()}</option>
+                                                    {field.options.map((option) => <option key={option} value={option}>{option}</option>)}
+                                                </select>
+                                            ) : field.type === 'checkbox' ? (
+                                                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, lineHeight: 1.5 }}>
+                                                    <input
+                                                        id={`applicant-${field.name}`}
+                                                        name={field.name}
+                                                        type="checkbox"
+                                                        checked={Boolean(applicantDetails[field.name])}
+                                                        onChange={handleApplicantDetailsChange}
+                                                        required={field.required}
+                                                        disabled={field.readOnly}
+                                                    />
+                                                    <span>{field.helpText || field.label}</span>
+                                                </label>
+                                            ) : (
+                                                <input
+                                                    id={`applicant-${field.name}`}
+                                                    name={field.name}
+                                                    className="portal-input"
+                                                    type={field.type || 'text'}
+                                                    value={applicantDetails[field.name] || ''}
+                                                    onChange={handleApplicantDetailsChange}
+                                                    readOnly={field.readOnly}
+                                                    min={field.name === 'currentSemester' ? 1 : ['familyIncome', 'previousPercentage', 'attendance'].includes(field.name) ? 0 : undefined}
+                                                    max={field.name === 'currentSemester' ? 20 : ['previousPercentage', 'attendance'].includes(field.name) ? 100 : undefined}
+                                                    step={field.type === 'number' ? 'any' : undefined}
+                                                />
+                                            )}
+                                        </div>
+                                    ))}
+                                </React.Fragment>
+                            ))}
+                        </div>
+
+                        <button
+                            type="submit"
+                            className="portal-button portal-button-primary"
+                            disabled={savingApplicantDetails}
+                            style={{ marginTop: '8px' }}
+                        >
+                            {savingApplicantDetails
+                                ? 'Saving Details...'
+                                : 'Save Details & Continue to Documents'}
+                        </button>
+                    </form>
+                )}
+
+
+                {(!canEditApplicantDetails || applicationStep === 'documents') && (
+                    <React.Fragment>
                 {/* =================================================
                     REQUIRED DOCUMENTS
                 ================================================== */}
@@ -2485,6 +2920,9 @@ const ApplicationDocuments = () => {
                     </button>
 
                 </div>
+
+                    </React.Fragment>
+                )}
 
             </main>
 

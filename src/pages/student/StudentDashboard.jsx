@@ -6,20 +6,23 @@ import React, {
 import {
     GraduationCap,
     LayoutDashboard,
-    UserCircle,
     FileText,
-    ClipboardList,
+    FileCheck2,
     Bell,
     LogOut,
     ChevronRight,
+    Menu,
     ShieldCheck,
-    Clock3
+    Clock3,
+    UserCircle,
+    X
 } from 'lucide-react';
 
 import { useNavigate } from 'react-router-dom';
 
 import API from '../../services/api';
 import authService from '../../services/authService';
+
 
 const StudentDashboard = () => {
 
@@ -28,8 +31,8 @@ const StudentDashboard = () => {
     const user =
         authService.getCurrentUser();
 
-    const [profileCompleted, setProfileCompleted] =
-        useState(false);
+    const [freeshipStatus, setFreeshipStatus] =
+        useState('DRAFT');
 
     const [applications, setApplications] =
         useState([]);
@@ -37,40 +40,75 @@ const StudentDashboard = () => {
     const [loadingDashboard, setLoadingDashboard] =
         useState(true);
 
+    const [notificationsOpen, setNotificationsOpen] =
+        useState(false);
+
+    const [mobileNavOpen, setMobileNavOpen] =
+        useState(false);
+
+
     /* ============================================================
        NAVIGATION
     ============================================================ */
 
     const goToDashboard = () => {
+        setMobileNavOpen(false);
         navigate('/student');
     };
 
-    const goToProfile = () => {
-        navigate('/student/profile');
-    };
-
     const goToScholarships = () => {
+        setMobileNavOpen(false);
         navigate('/student/scholarships');
     };
 
     const goToApplications = () => {
-        navigate('/student/applications');
+        setMobileNavOpen(false);
+        navigate('/student/apply-online');
     };
+
+    const goToFreeshipCard = () => {
+        setMobileNavOpen(false);
+        navigate('/student/freeship-card');
+    };
+
+    const openNotification = (notification) => {
+        setNotificationsOpen(false);
+
+        const application = notification.application;
+        const applicationPath =
+            application.status === 'DRAFT' ||
+            application.status === 'CORRECTION REQUIRED'
+                ? `/student/applications/${application._id}/documents`
+                : `/student/applications/${application._id}`;
+
+        navigate(applicationPath);
+    };
+
 
     /* ============================================================
        LOGOUT
     ============================================================ */
 
     const handleLogout = () => {
+
+        setMobileNavOpen(false);
+
         authService.logout();
-        window.location.href = '/login';
+
+        navigate('/login', {
+            replace: true
+        });
+
     };
+
 
     /* ============================================================
        LOAD DASHBOARD DATA
     ============================================================ */
 
     useEffect(() => {
+
+        let isMounted = true;
 
         const loadDashboardData = async () => {
 
@@ -80,51 +118,29 @@ const StudentDashboard = () => {
                     authService.getToken();
 
                 if (!token) {
-                    navigate('/login');
+
+                    navigate('/login', {
+                        replace: true
+                    });
+
                     return;
                 }
 
-                const headers = {
-                    Authorization:
-                        `Bearer ${token}`
-                };
-
-                /* ================================================
-                   LOAD STUDENT PROFILE
-                ================================================ */
 
                 try {
-
-                    const profileResponse =
-                        await API.get(
-                            '/student-profile/me',
-                            {
-                                headers
-                            }
-                        );
-
-                    setProfileCompleted(
-                        profileResponse.data
-                            ?.profileCompleted === true
-                    );
-
-                } catch (profileError) {
-
-                    if (
-                        profileError.response?.status ===
-                        401
-                    ) {
+                    const freeshipResponse = await API.get('/freeship-cards/me');
+                    if (isMounted) {
+                        setFreeshipStatus(freeshipResponse.data?.application?.status || 'DRAFT');
+                    }
+                } catch (freeshipError) {
+                    if (freeshipError.response?.status === 401) {
                         authService.logout();
-                        navigate('/login');
+                        navigate('/login', { replace: true });
                         return;
                     }
-
-                    console.error(
-                        'Unable to load student profile:',
-                        profileError
-                    );
-
+                    console.error('Unable to load Freeship Card status:', freeshipError);
                 }
+
 
                 /* ================================================
                    LOAD STUDENT APPLICATIONS
@@ -134,16 +150,17 @@ const StudentDashboard = () => {
 
                     const applicationResponse =
                         await API.get(
-                            '/applications/my',
-                            {
-                                headers
-                            }
+                            '/applications/my'
                         );
 
-                    setApplications(
-                        applicationResponse.data
-                            ?.applications || []
-                    );
+                    if (isMounted) {
+
+                        setApplications(
+                            applicationResponse.data
+                                ?.applications || []
+                        );
+
+                    }
 
                 } catch (applicationError) {
 
@@ -151,8 +168,13 @@ const StudentDashboard = () => {
                         applicationError.response?.status ===
                         401
                     ) {
+
                         authService.logout();
-                        navigate('/login');
+
+                        navigate('/login', {
+                            replace: true
+                        });
+
                         return;
                     }
 
@@ -172,17 +194,25 @@ const StudentDashboard = () => {
 
             } finally {
 
-                setLoadingDashboard(false);
+                if (isMounted) {
+                    setLoadingDashboard(false);
+                }
 
             }
+
         };
 
         loadDashboardData();
 
+        return () => {
+            isMounted = false;
+        };
+
     }, [navigate]);
 
+
     /* ============================================================
-       APPLICATION STATUS HELPERS
+       GET LATEST APPLICATION
     ============================================================ */
 
     const getLatestApplication = () => {
@@ -217,8 +247,14 @@ const StudentDashboard = () => {
 
     };
 
+
     const latestApplication =
         getLatestApplication();
+
+
+    /* ============================================================
+       APPLICATION STATUS CLASS
+    ============================================================ */
 
     const getStatusClass = (status) => {
 
@@ -243,8 +279,15 @@ const StudentDashboard = () => {
             case 'DRAFT':
             default:
                 return 'portal-status-neutral';
+
         }
+
     };
+
+
+    /* ============================================================
+       APPLICATION STATUS TEXT
+    ============================================================ */
 
     const getStatusText = (status) => {
 
@@ -259,7 +302,13 @@ const StudentDashboard = () => {
                 (letter) =>
                     letter.toUpperCase()
             );
+
     };
+
+
+    /* ============================================================
+       APPLICATION MESSAGE
+    ============================================================ */
 
     const getApplicationMessage = (status) => {
 
@@ -294,8 +343,15 @@ const StudentDashboard = () => {
 
             default:
                 return 'Your application status will appear here.';
+
         }
+
     };
+
+
+    /* ============================================================
+       FORMAT DATE
+    ============================================================ */
 
     const formatDate = (date) => {
 
@@ -303,7 +359,18 @@ const StudentDashboard = () => {
             return '—';
         }
 
-        return new Date(date).toLocaleDateString(
+        const parsedDate =
+            new Date(date);
+
+        if (
+            Number.isNaN(
+                parsedDate.getTime()
+            )
+        ) {
+            return '—';
+        }
+
+        return parsedDate.toLocaleDateString(
             'en-IN',
             {
                 day: '2-digit',
@@ -311,10 +378,34 @@ const StudentDashboard = () => {
                 year: 'numeric'
             }
         );
+
     };
 
+
+    const notifications = applications.map((application) => ({
+            id: application._id,
+            type: 'application',
+            application,
+            title: application.scholarship?.name || 'Scholarship application',
+            message: getApplicationMessage(application.status),
+            action:
+                application.status === 'DRAFT'
+                    ? 'Continue Application'
+                    : application.status === 'CORRECTION REQUIRED'
+                        ? 'Review Corrections'
+                        : 'View Application',
+            date: application.updatedAt || application.createdAt
+        })).sort((a, b) => {
+        if (!a.date) return 1;
+        if (!b.date) return -1;
+        return new Date(b.date) - new Date(a.date);
+    });
+
+
     return (
+
         <div
+            className="student-dashboard-layout"
             style={{
                 minHeight: '100vh',
                 background: '#f5f7fb',
@@ -326,7 +417,17 @@ const StudentDashboard = () => {
                 SIDEBAR
             ====================================================== */}
 
+            {mobileNavOpen && (
+                <button
+                    type="button"
+                    className="student-sidebar-backdrop"
+                    aria-label="Close navigation menu"
+                    onClick={() => setMobileNavOpen(false)}
+                />
+            )}
+
             <aside
+                className={`student-dashboard-sidebar${mobileNavOpen ? ' is-open' : ''}`}
                 style={{
                     width: '250px',
                     minHeight: '100vh',
@@ -400,6 +501,7 @@ const StudentDashboard = () => {
 
                 </div>
 
+
                 {/* NAVIGATION */}
 
                 <nav
@@ -447,34 +549,14 @@ const StudentDashboard = () => {
                                 alignItems: 'center',
                                 gap: '12px',
                                 textAlign: 'left',
-                                fontWeight: '600'
+                                fontWeight: '600',
+                                cursor: 'pointer'
                             }}
                         >
                             <LayoutDashboard size={18} />
                             Dashboard
                         </button>
 
-                        {/* My Profile */}
-
-                        <button
-                            type="button"
-                            onClick={goToProfile}
-                            style={{
-                                width: '100%',
-                                border: 'none',
-                                borderRadius: '8px',
-                                padding: '12px',
-                                background: 'transparent',
-                                color: '#cbd5e1',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '12px',
-                                textAlign: 'left'
-                            }}
-                        >
-                            <UserCircle size={18} />
-                            My Profile
-                        </button>
 
                         {/* Scholarships */}
 
@@ -491,18 +573,44 @@ const StudentDashboard = () => {
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '12px',
-                                textAlign: 'left'
+                                textAlign: 'left',
+                                cursor: 'pointer'
                             }}
                         >
                             <FileText size={18} />
                             Scholarships
                         </button>
 
-                        {/* My Applications */}
+
+                        {freeshipStatus === 'APPROVED' && (
+                            <button
+                                type="button"
+                                onClick={goToApplications}
+                                style={{
+                                    width: '100%',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    padding: '12px',
+                                    background: 'transparent',
+                                    color: '#cbd5e1',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '12px',
+                                    textAlign: 'left',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                <FileText size={18} />
+                                Apply Online
+                            </button>
+                        )}
+
+
+                        {/* Freeship Card */}
 
                         <button
                             type="button"
-                            onClick={goToApplications}
+                            onClick={goToFreeshipCard}
                             style={{
                                 width: '100%',
                                 border: 'none',
@@ -513,17 +621,52 @@ const StudentDashboard = () => {
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '12px',
-                                textAlign: 'left'
+                                textAlign: 'left',
+                                cursor: 'pointer'
                             }}
                         >
-                            <ClipboardList size={18} />
-                            My Applications
+                            <FileCheck2 size={18} />
+                            {['DRAFT', 'REJECTED'].includes(freeshipStatus) ? 'Apply Freeship Card' : 'Freeship Card'}
                         </button>
+
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setMobileNavOpen(false);
+                                navigate('/student/profile');
+                            }}
+                            style={{
+                                width: '100%',
+                                border: 'none',
+                                borderRadius: '8px',
+                                padding: '12px',
+                                background: 'transparent',
+                                color: '#cbd5e1',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '12px',
+                                textAlign: 'left',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            <UserCircle size={18} />
+                            Student Profile
+                        </button>
+
 
                         {/* Notifications */}
 
                         <button
                             type="button"
+                            onClick={() =>
+                                {
+                                    setMobileNavOpen(false);
+                                    setNotificationsOpen(true);
+                                }
+                            }
+                            aria-haspopup="dialog"
+                            aria-expanded={notificationsOpen}
+                            aria-controls="student-notifications-dialog"
                             style={{
                                 width: '100%',
                                 border: 'none',
@@ -534,7 +677,8 @@ const StudentDashboard = () => {
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '12px',
-                                textAlign: 'left'
+                                textAlign: 'left',
+                                cursor: 'pointer'
                             }}
                         >
                             <Bell size={18} />
@@ -544,6 +688,7 @@ const StudentDashboard = () => {
                     </div>
 
                 </nav>
+
 
                 {/* LOGOUT */}
 
@@ -569,7 +714,8 @@ const StudentDashboard = () => {
                             display: 'flex',
                             alignItems: 'center',
                             gap: '12px',
-                            textAlign: 'left'
+                            textAlign: 'left',
+                            cursor: 'pointer'
                         }}
                     >
                         <LogOut size={18} />
@@ -580,11 +726,13 @@ const StudentDashboard = () => {
 
             </aside>
 
+
             {/* =====================================================
                 MAIN CONTENT
             ====================================================== */}
 
             <main
+                className="student-dashboard-main"
                 style={{
                     marginLeft: '250px',
                     width: 'calc(100% - 250px)',
@@ -592,9 +740,183 @@ const StudentDashboard = () => {
                 }}
             >
 
+                {notificationsOpen && (
+                    <div
+                        role="presentation"
+                        onClick={() => setNotificationsOpen(false)}
+                        style={{
+                            position: 'fixed',
+                            inset: 0,
+                            zIndex: 1000,
+                            background: 'rgba(15, 23, 42, 0.42)',
+                            display: 'flex',
+                            justifyContent: 'flex-end'
+                        }}
+                    >
+                        <section
+                            id="student-notifications-dialog"
+                            role="dialog"
+                            aria-modal="true"
+                            aria-labelledby="student-notifications-title"
+                            onClick={(event) => event.stopPropagation()}
+                            style={{
+                                width: 'min(440px, 100%)',
+                                height: '100%',
+                                overflowY: 'auto',
+                                background: '#ffffff',
+                                boxShadow: '-12px 0 32px rgba(15, 23, 42, 0.18)',
+                                padding: '26px 22px'
+                            }}
+                        >
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'flex-start',
+                                    justifyContent: 'space-between',
+                                    gap: '16px',
+                                    marginBottom: '20px'
+                                }}
+                            >
+                                <div>
+                                    <h2
+                                        id="student-notifications-title"
+                                        style={{
+                                            margin: 0,
+                                            color: '#172033',
+                                            fontSize: '22px'
+                                        }}
+                                    >
+                                        Notifications
+                                    </h2>
+                                    <p
+                                        style={{
+                                            color: '#64748b',
+                                            fontSize: '13px',
+                                            margin: '6px 0 0'
+                                        }}
+                                    >
+                                        Freeship approval and scholarship application updates.
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setNotificationsOpen(false)}
+                                    aria-label="Close notifications"
+                                    style={{
+                                        border: '1px solid #e2e8f0',
+                                        borderRadius: '8px',
+                                        background: '#ffffff',
+                                        color: '#334155',
+                                        padding: '7px 11px',
+                                        cursor: 'pointer',
+                                        fontSize: '18px'
+                                    }}
+                                >
+                                    ×
+                                </button>
+                            </div>
+
+                            {notifications.length === 0 ? (
+                                <div
+                                    style={{
+                                        padding: '24px 18px',
+                                        border: '1px solid #e2e8f0',
+                                        borderRadius: '12px',
+                                        background: '#f8fafc',
+                                        color: '#64748b',
+                                        textAlign: 'center',
+                                        fontSize: '14px',
+                                        lineHeight: 1.6
+                                    }}
+                                >
+                                    You’re all caught up. Application updates will appear here.
+                                </div>
+                            ) : (
+                                <div
+                                    style={{
+                                        display: 'grid',
+                                        gap: '12px'
+                                    }}
+                                >
+                                    {notifications.map((notification) => (
+                                        <button
+                                            type="button"
+                                            key={notification.id}
+                                            onClick={() => openNotification(notification)}
+                                            style={{
+                                                width: '100%',
+                                                padding: '16px',
+                                                border: '1px solid #e2e8f0',
+                                                borderRadius: '12px',
+                                                background: '#ffffff',
+                                                color: '#172033',
+                                                textAlign: 'left',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            <div
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'flex-start',
+                                                    gap: '11px'
+                                                }}
+                                            >
+                                                <Bell
+                                                    size={18}
+                                                    color="#174a8b"
+                                                    style={{ flexShrink: 0, marginTop: '2px' }}
+                                                />
+                                                <div>
+                                                    <div
+                                                        style={{
+                                                            fontWeight: 700,
+                                                            fontSize: '14px',
+                                                            marginBottom: '6px'
+                                                        }}
+                                                    >
+                                                        {notification.title}
+                                                    </div>
+                                                    <div
+                                                        style={{
+                                                            color: '#64748b',
+                                                            fontSize: '13px',
+                                                            lineHeight: 1.55
+                                                        }}
+                                                    >
+                                                        {notification.message}
+                                                    </div>
+                                                    <div
+                                                        style={{
+                                                            display: 'flex',
+                                                            justifyContent: 'space-between',
+                                                            gap: '12px',
+                                                            marginTop: '12px',
+                                                            color: '#174a8b',
+                                                            fontWeight: 700,
+                                                            fontSize: '12px'
+                                                        }}
+                                                    >
+                                                        <span>{notification.action}</span>
+                                                        {notification.date && (
+                                                            <span style={{ color: '#94a3b8', fontWeight: 500 }}>
+                                                                {formatDate(notification.date)}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </section>
+                    </div>
+                )}
+
                 {/* TOP HEADER */}
 
                 <header
+                    className="student-dashboard-topbar"
                     style={{
                         height: '76px',
                         background: '#ffffff',
@@ -607,9 +929,20 @@ const StudentDashboard = () => {
                     }}
                 >
 
-                    <div>
+                    <div className="student-dashboard-title-group">
+
+                        <button
+                            type="button"
+                            className="student-dashboard-menu-button"
+                            aria-label={mobileNavOpen ? 'Close navigation menu' : 'Open navigation menu'}
+                            aria-expanded={mobileNavOpen}
+                            onClick={() => setMobileNavOpen((open) => !open)}
+                        >
+                            {mobileNavOpen ? <X size={20} /> : <Menu size={20} />}
+                        </button>
 
                         <h1
+                            className="student-dashboard-title"
                             style={{
                                 margin: 0,
                                 fontFamily:
@@ -622,6 +955,7 @@ const StudentDashboard = () => {
                         </h1>
 
                         <p
+                            className="student-dashboard-subtitle"
                             style={{
                                 margin: '3px 0 0',
                                 color: '#64748b',
@@ -633,7 +967,9 @@ const StudentDashboard = () => {
 
                     </div>
 
+
                     <div
+                        className="student-dashboard-profile"
                         style={{
                             display: 'flex',
                             alignItems: 'center',
@@ -688,9 +1024,11 @@ const StudentDashboard = () => {
 
                 </header>
 
+
                 {/* PAGE CONTENT */}
 
                 <div
+                    className="student-dashboard-content"
                     style={{
                         padding: '34px'
                     }}
@@ -749,10 +1087,7 @@ const StudentDashboard = () => {
                                     fontSize: '14px'
                                 }}
                             >
-                                Manage your scholarship profile,
-                                discover available scholarships,
-                                submit applications and track
-                                their progress from one place.
+                                Complete your Freeship Card, unlock scholarship applications after approval, and track your applications here.
                             </p>
 
                         </div>
@@ -770,19 +1105,20 @@ const StudentDashboard = () => {
 
                     </section>
 
+
                     {/* SUMMARY CARDS */}
 
                     <section
                         style={{
                             display: 'grid',
                             gridTemplateColumns:
-                                'repeat(3, minmax(0, 1fr))',
+                                'repeat(4, minmax(0, 1fr))',
                             gap: '18px',
                             marginBottom: '26px'
                         }}
                     >
 
-                        {/* Profile */}
+                        {/* FREESHIP CARD STATUS */}
 
                         <div
                             className="portal-card"
@@ -790,7 +1126,7 @@ const StudentDashboard = () => {
                                 padding: '22px',
                                 cursor: 'pointer'
                             }}
-                            onClick={goToProfile}
+                            onClick={goToFreeshipCard}
                         >
 
                             <div
@@ -817,7 +1153,7 @@ const StudentDashboard = () => {
                                             'center'
                                     }}
                                 >
-                                    <UserCircle size={21} />
+                                    <ShieldCheck size={21} />
                                 </div>
 
                                 {loadingDashboard ? (
@@ -826,16 +1162,22 @@ const StudentDashboard = () => {
                                         Checking...
                                     </span>
 
-                                ) : profileCompleted ? (
+                                ) : freeshipStatus === 'APPROVED' ? (
 
                                     <span className="portal-status portal-status-success">
-                                        Profile Complete
+                                        Approved
+                                    </span>
+
+                                ) : freeshipStatus === 'PENDING APPROVAL' ? (
+
+                                    <span className="portal-status portal-status-neutral">
+                                        Pending Approval
                                     </span>
 
                                 ) : (
 
                                     <span className="portal-status portal-status-warning">
-                                        Complete Profile
+                                        {freeshipStatus === 'REJECTED' ? 'Corrections Needed' : 'Not Approved'}
                                     </span>
 
                                 )}
@@ -849,7 +1191,7 @@ const StudentDashboard = () => {
                                     color: '#172033'
                                 }}
                             >
-                                Student Profile
+                                Freeship Card
                             </h3>
 
                             <p
@@ -860,18 +1202,21 @@ const StudentDashboard = () => {
                                     lineHeight: 1.6
                                 }}
                             >
-                                {profileCompleted
-                                    ? 'Your academic, personal and bank details are complete.'
-                                    : 'Complete your academic, personal and bank details.'}
+                                {freeshipStatus === 'APPROVED'
+                                    ? 'Scholarship applications are unlocked.'
+                                    : freeshipStatus === 'PENDING APPROVAL'
+                                        ? 'Your card is waiting for administrator approval.'
+                                        : 'Complete and submit the card form to unlock scholarship applications.'}
                             </p>
 
                         </div>
 
-                        {/* Scholarships */}
+
+                        {/* SCHOLARSHIPS */}
 
                         <div
                             className="portal-card"
-                            onClick={goToScholarships}
+                            onClick={freeshipStatus === 'APPROVED' ? goToApplications : goToScholarships}
                             style={{
                                 padding: '22px',
                                 cursor: 'pointer'
@@ -903,7 +1248,7 @@ const StudentDashboard = () => {
                                     color: '#172033'
                                 }}
                             >
-                                Available Scholarships
+                                {freeshipStatus === 'APPROVED' ? 'Apply Online' : 'Available Scholarships'}
                             </h3>
 
                             <p
@@ -914,18 +1259,19 @@ const StudentDashboard = () => {
                                     lineHeight: 1.6
                                 }}
                             >
-                                View published scholarships,
-                                eligibility criteria and
-                                application deadlines.
+                                {freeshipStatus === 'APPROVED'
+                                    ? 'Your Freeship Card is approved. Choose a scheme to complete and submit its scholarship application.'
+                                    : 'View published scholarships, eligibility criteria and application deadlines.'}
                             </p>
 
                         </div>
 
-                        {/* Applications */}
+
+                        {/* STUDENT PROFILE */}
 
                         <div
                             className="portal-card"
-                            onClick={goToApplications}
+                            onClick={() => navigate('/student/profile')}
                             style={{
                                 padding: '22px',
                                 cursor: 'pointer'
@@ -947,7 +1293,7 @@ const StudentDashboard = () => {
                                     marginBottom: '16px'
                                 }}
                             >
-                                <ClipboardList size={21} />
+                                <UserCircle size={21} />
                             </div>
 
                             <h3
@@ -957,7 +1303,78 @@ const StudentDashboard = () => {
                                     color: '#172033'
                                 }}
                             >
-                                My Applications
+                                Student Profile
+                            </h3>
+
+                            <p
+                                style={{
+                                    margin: 0,
+                                    color: '#64748b',
+                                    fontSize: '13px',
+                                    lineHeight: 1.6
+                                }}
+                            >
+                                View the personal, contact, address, and course details saved with your Freeship Card.
+                            </p>
+
+                        </div>
+
+
+                        {/* APPLICATION STATUS */}
+
+                        <div
+                            className="portal-card"
+                            onClick={latestApplication ? goToApplications : goToScholarships}
+                            style={{
+                                padding: '22px',
+                                cursor: 'pointer'
+                            }}
+                        >
+
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: '8px',
+                                    marginBottom: '16px'
+                                }}
+                            >
+                                <div
+                                    style={{
+                                        width: '42px',
+                                        height: '42px',
+                                        borderRadius: '10px',
+                                        background: '#eaf1fb',
+                                        color: '#174a8b',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        flex: '0 0 auto'
+                                    }}
+                                >
+                                    <Clock3 size={21} />
+                                </div>
+
+                                {loadingDashboard ? (
+                                    <span className="portal-status portal-status-neutral">Checking...</span>
+                                ) : latestApplication ? (
+                                    <span className={`portal-status ${getStatusClass(latestApplication.status)}`}>
+                                        {getStatusText(latestApplication.status)}
+                                    </span>
+                                ) : (
+                                    <span className="portal-status portal-status-neutral">No activity</span>
+                                )}
+                            </div>
+
+                            <h3
+                                style={{
+                                    margin: '0 0 7px',
+                                    fontSize: '16px',
+                                    color: '#172033'
+                                }}
+                            >
+                                Application Status
                             </h3>
 
                             <p
@@ -969,317 +1386,27 @@ const StudentDashboard = () => {
                                 }}
                             >
                                 {loadingDashboard
-                                    ? 'Checking your applications...'
-                                    : applications.length === 0
-                                        ? 'No scholarship applications submitted yet.'
-                                        : `${applications.length} scholarship application${applications.length > 1 ? 's' : ''} in your account.`}
+                                    ? 'Checking your latest application.'
+                                    : latestApplication
+                                        ? latestApplication.scholarship?.name || 'View your latest scholarship application.'
+                                        : 'Your application activity will appear here after you apply.'}
                             </p>
 
                         </div>
 
                     </section>
 
-                    {/* MAIN DASHBOARD GRID */}
+
+                    {/* QUICK ACTIONS */}
 
                     <section
+                        className="student-dashboard-quick-actions"
                         style={{
                             display: 'grid',
-                            gridTemplateColumns:
-                                'minmax(0, 1.5fr) minmax(280px, 1fr)',
-                            gap: '20px'
+                            gridTemplateColumns: 'minmax(0, 1fr)',
+                            gap: '12px'
                         }}
                     >
-
-                        {/* Application Status */}
-
-                        <div
-                            className="portal-card"
-                            style={{
-                                padding: '26px'
-                            }}
-                        >
-
-                            <div
-                                style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent:
-                                        'space-between',
-                                    marginBottom: '22px'
-                                }}
-                            >
-
-                                <div>
-
-                                    <h2
-                                        style={{
-                                            margin: 0,
-                                            fontFamily:
-                                                "'Playfair Display', Georgia, serif",
-                                            fontSize: '21px',
-                                            color: '#172033'
-                                        }}
-                                    >
-                                        Application Status
-                                    </h2>
-
-                                    <p
-                                        style={{
-                                            margin:
-                                                '5px 0 0',
-                                            color: '#64748b',
-                                            fontSize: '13px'
-                                        }}
-                                    >
-                                        Your latest scholarship
-                                        application activity.
-                                    </p>
-
-                                </div>
-
-                                <Clock3
-                                    size={22}
-                                    color="#174a8b"
-                                />
-
-                            </div>
-
-                            {loadingDashboard ? (
-
-                                <div
-                                    style={{
-                                        border:
-                                            '1px dashed #cbd5e1',
-                                        borderRadius: '10px',
-                                        padding: '32px',
-                                        textAlign: 'center',
-                                        background:
-                                            '#f8fafc'
-                                    }}
-                                >
-
-                                    <Clock3
-                                        size={34}
-                                        color="#94a3b8"
-                                        style={{
-                                            margin:
-                                                '0 auto 10px'
-                                        }}
-                                    />
-
-                                    <h3
-                                        style={{
-                                            margin:
-                                                '0 0 6px',
-                                            color: '#334155',
-                                            fontSize: '15px'
-                                        }}
-                                    >
-                                        Loading application status
-                                    </h3>
-
-                                    <p
-                                        style={{
-                                            margin: 0,
-                                            color: '#64748b',
-                                            fontSize: '13px'
-                                        }}
-                                    >
-                                        Checking your latest
-                                        scholarship application.
-                                    </p>
-
-                                </div>
-
-                            ) : !latestApplication ? (
-
-                                <div
-                                    style={{
-                                        border:
-                                            '1px dashed #cbd5e1',
-                                        borderRadius: '10px',
-                                        padding: '28px',
-                                        textAlign: 'center',
-                                        background:
-                                            '#f8fafc'
-                                    }}
-                                >
-
-                                    <ClipboardList
-                                        size={34}
-                                        color="#94a3b8"
-                                        style={{
-                                            margin:
-                                                '0 auto 10px'
-                                        }}
-                                    />
-
-                                    <h3
-                                        style={{
-                                            margin:
-                                                '0 0 6px',
-                                            color: '#334155',
-                                            fontSize: '15px'
-                                        }}
-                                    >
-                                        No application activity yet
-                                    </h3>
-
-                                    <p
-                                        style={{
-                                            margin: 0,
-                                            color: '#64748b',
-                                            fontSize: '13px'
-                                        }}
-                                    >
-                                        Your application status will
-                                        appear here after you apply
-                                        for a scholarship.
-                                    </p>
-
-                                    <button
-                                        type="button"
-                                        onClick={goToScholarships}
-                                        className="portal-button portal-button-secondary"
-                                        style={{
-                                            marginTop: '16px'
-                                        }}
-                                    >
-                                        Browse Scholarships
-                                    </button>
-
-                                </div>
-
-                            ) : (
-
-                                <div
-                                    style={{
-                                        border:
-                                            '1px solid #e2e8f0',
-                                        borderRadius: '10px',
-                                        padding: '22px',
-                                        background:
-                                            '#ffffff'
-                                    }}
-                                >
-
-                                    <div
-                                        style={{
-                                            display: 'flex',
-                                            alignItems:
-                                                'flex-start',
-                                            justifyContent:
-                                                'space-between',
-                                            gap: '20px',
-                                            marginBottom:
-                                                '18px'
-                                        }}
-                                    >
-
-                                        <div>
-
-                                            <h3
-                                                style={{
-                                                    margin:
-                                                        '0 0 6px',
-                                                    color: '#172033',
-                                                    fontSize: '17px'
-                                                }}
-                                            >
-                                                {latestApplication
-                                                    .scholarship
-                                                    ?.name ||
-                                                    'Scholarship Application'}
-                                            </h3>
-
-                                            <p
-                                                style={{
-                                                    margin: 0,
-                                                    color: '#64748b',
-                                                    fontSize: '12px'
-                                                }}
-                                            >
-                                                Application No:{' '}
-                                                {latestApplication
-                                                    .applicationNumber ||
-                                                    'Not assigned yet'}
-                                            </p>
-
-                                        </div>
-
-                                        <span
-                                            className={`portal-status ${getStatusClass(
-                                                latestApplication.status
-                                            )}`}
-                                        >
-                                            {getStatusText(
-                                                latestApplication.status
-                                            )}
-                                        </span>
-
-                                    </div>
-
-                                    <p
-                                        style={{
-                                            margin:
-                                                '0 0 18px',
-                                            color: '#64748b',
-                                            fontSize: '13px',
-                                            lineHeight: 1.7
-                                        }}
-                                    >
-                                        {getApplicationMessage(
-                                            latestApplication.status
-                                        )}
-                                    </p>
-
-                                    <div
-                                        style={{
-                                            display: 'flex',
-                                            alignItems:
-                                                'center',
-                                            justifyContent:
-                                                'space-between',
-                                            gap: '15px',
-                                            paddingTop:
-                                                '15px',
-                                            borderTop:
-                                                '1px solid #e8edf3'
-                                        }}
-                                    >
-
-                                        <span
-                                            style={{
-                                                color: '#64748b',
-                                                fontSize: '12px'
-                                            }}
-                                        >
-                                            Last updated:{' '}
-                                            {formatDate(
-                                                latestApplication.updatedAt ||
-                                                latestApplication.createdAt
-                                            )}
-                                        </span>
-
-                                        <button
-                                            type="button"
-                                            onClick={
-                                                goToApplications
-                                            }
-                                            className="portal-button portal-button-secondary"
-                                        >
-                                            View Applications
-                                        </button>
-
-                                    </div>
-
-                                </div>
-
-                            )}
-
-                        </div>
-
-                        {/* QUICK ACTIONS */}
 
                         <div
                             className="portal-card"
@@ -1312,6 +1439,7 @@ const StudentDashboard = () => {
                             </p>
 
                             <div
+                                className="student-dashboard-quick-links"
                                 style={{
                                     display: 'flex',
                                     flexDirection:
@@ -1320,42 +1448,7 @@ const StudentDashboard = () => {
                                 }}
                             >
 
-                                {/* Complete Profile */}
-
-                                <button
-                                    type="button"
-                                    onClick={goToProfile}
-                                    className="portal-button portal-button-secondary"
-                                    style={{
-                                        display: 'flex',
-                                        alignItems:
-                                            'center',
-                                        justifyContent:
-                                            'space-between',
-                                        width: '100%'
-                                    }}
-                                >
-
-                                    <span
-                                        style={{
-                                            display: 'flex',
-                                            alignItems:
-                                                'center',
-                                            gap: '10px'
-                                        }}
-                                    >
-                                        <UserCircle size={18} />
-
-                                        {profileCompleted
-                                            ? 'View Profile'
-                                            : 'Complete Profile'}
-                                    </span>
-
-                                    <ChevronRight size={17} />
-
-                                </button>
-
-                                {/* Browse Scholarships */}
+                                {/* BROWSE SCHOLARSHIPS */}
 
                                 <button
                                     type="button"
@@ -1387,9 +1480,10 @@ const StudentDashboard = () => {
 
                                 </button>
 
-                                {/* View Applications */}
 
-                                <button
+                                {/* APPLY ONLINE */}
+
+                                {freeshipStatus === 'APPROVED' && <button
                                     type="button"
                                     onClick={goToApplications}
                                     className="portal-button portal-button-secondary"
@@ -1411,17 +1505,33 @@ const StudentDashboard = () => {
                                             gap: '10px'
                                         }}
                                     >
-                                        <ClipboardList
-                                            size={18}
-                                        />
-
-                                        {applications.length > 0
-                                            ? `View Applications (${applications.length})`
-                                            : 'View Applications'}
+                                        <FileText size={18} />
+                                        {applications.length > 0 ? `Apply Online (${applications.length})` : 'Apply Online'}
                                     </span>
 
                                     <ChevronRight size={17} />
 
+                                </button>}
+
+
+                                {/* FREESHIP CARD */}
+
+                                <button
+                                    type="button"
+                                    onClick={goToFreeshipCard}
+                                    className="portal-button portal-button-secondary"
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        width: '100%'
+                                    }}
+                                >
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                        <FileCheck2 size={18} />
+                                        Freeship Card Application
+                                    </span>
+                                    <ChevronRight size={17} />
                                 </button>
 
                             </div>
@@ -1429,6 +1539,7 @@ const StudentDashboard = () => {
                         </div>
 
                     </section>
+
 
                     {/* PORTAL NOTICE */}
 
@@ -1481,10 +1592,7 @@ const StudentDashboard = () => {
                                     lineHeight: 1.6
                                 }}
                             >
-                                Keep your profile and documents
-                                accurate. Information submitted
-                                through this portal may be used
-                                for scholarship verification.
+                                Keep your Freeship Card application and scholarship documents accurate. Information submitted through this portal may be used for scholarship verification.
                             </p>
 
                         </div>
@@ -1495,62 +1603,12 @@ const StudentDashboard = () => {
 
             </main>
 
-            {/* =====================================================
-                RESPONSIVE OVERRIDE
-            ====================================================== */}
-
-            <style>
-                {`
-                    @media (max-width: 900px) {
-
-                        aside {
-                            width: 210px !important;
-                        }
-
-                        main {
-                            margin-left: 210px !important;
-                            width: calc(100% - 210px) !important;
-                        }
-
-                        main section[style*="repeat(3"] {
-                            grid-template-columns: 1fr !important;
-                        }
-                    }
-
-                    @media (max-width: 700px) {
-
-                        aside {
-                            position: relative !important;
-                            width: 100% !important;
-                            min-height: auto !important;
-                        }
-
-                        main {
-                            margin-left: 0 !important;
-                            width: 100% !important;
-                        }
-
-                        body {
-                            overflow-x: hidden;
-                        }
-
-                        main > header {
-                            padding: 0 18px !important;
-                        }
-
-                        main > div {
-                            padding: 20px !important;
-                        }
-
-                        main section[style*="minmax(0, 1.5fr"] {
-                            grid-template-columns: 1fr !important;
-                        }
-                    }
-                `}
-            </style>
 
         </div>
+
     );
+
 };
+
 
 export default StudentDashboard;

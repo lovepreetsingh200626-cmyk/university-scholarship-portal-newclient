@@ -1,4 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, {
+    useEffect,
+    useState
+} from 'react';
 
 import {
     ArrowLeft,
@@ -44,108 +47,117 @@ const Eligibility = () => {
 
     useEffect(() => {
 
+        let isMounted = true;
+
+        const checkEligibility = async () => {
+
+            try {
+
+                setLoading(true);
+                setError('');
+
+                const token =
+                    authService.getToken();
+
+                if (!token) {
+                    navigate('/login');
+                    return;
+                }
+
+                if (!id) {
+
+                    if (isMounted) {
+                        setError(
+                            'Scholarship information could not be found.'
+                        );
+                    }
+
+                    return;
+                }
+
+                const response =
+                    await API.get(
+                        `/eligibility/${id}`
+                    );
+
+                if (
+                    response.data &&
+                    response.data.success
+                ) {
+
+                    if (isMounted) {
+                        setEligibility(
+                            response.data
+                        );
+                    }
+
+                } else {
+
+                    if (isMounted) {
+                        setError(
+                            response.data &&
+                            response.data.message
+                                ? response.data.message
+                                : 'Unable to check eligibility.'
+                        );
+                    }
+
+                }
+
+            } catch (error) {
+
+                console.error(
+                    'Eligibility check error:',
+                    error
+                );
+
+                if (
+                    error.response &&
+                    error.response.status === 401
+                ) {
+
+                    authService.logout();
+
+                    navigate('/login');
+
+                    return;
+                }
+
+                if (
+                    isMounted &&
+                    error.response &&
+                    error.response.data &&
+                    error.response.data.message
+                ) {
+
+                    setError(
+                        error.response.data.message
+                    );
+
+                } else if (isMounted) {
+
+                    setError(
+                        'Unable to check scholarship eligibility. Please try again.'
+                    );
+
+                }
+
+            } finally {
+
+                if (isMounted) {
+                    setLoading(false);
+                }
+
+            }
+        };
+
         checkEligibility();
 
-    }, [id]);
+        return () => {
+            isMounted = false;
+        };
 
-    const checkEligibility = async () => {
-
-        try {
-
-            setLoading(true);
-            setError('');
-
-            const token =
-                authService.getToken();
-
-            if (!token) {
-                navigate('/login');
-                return;
-            }
-
-            if (!id) {
-
-                setError(
-                    'Scholarship information could not be found.'
-                );
-
-                return;
-            }
-
-            const response =
-                await API.get(
-                    `/eligibility/${id}`,
-                    {
-                        headers: {
-                            Authorization:
-                                `Bearer ${token}`
-                        }
-                    }
-                );
-
-            if (
-                response.data &&
-                response.data.success
-            ) {
-
-                setEligibility(
-                    response.data
-                );
-
-            } else {
-
-                setError(
-                    response.data &&
-                    response.data.message
-                        ? response.data.message
-                        : 'Unable to check eligibility.'
-                );
-
-            }
-
-        } catch (error) {
-
-            console.error(
-                'Eligibility check error:',
-                error
-            );
-
-            if (
-                error.response &&
-                error.response.status === 401
-            ) {
-
-                authService.logout();
-
-                navigate('/login');
-
-                return;
-            }
-
-            if (
-                error.response &&
-                error.response.data &&
-                error.response.data.message
-            ) {
-
-                setError(
-                    error.response.data.message
-                );
-
-            } else {
-
-                setError(
-                    'Unable to check scholarship eligibility. Please try again.'
-                );
-
-            }
-
-        } finally {
-
-            setLoading(false);
-
-        }
-    };
+    }, [id, navigate]);
 
     /* ========================================================
        LOADING
@@ -256,6 +268,7 @@ const Eligibility = () => {
                                 )
                             }
                         >
+
                             <ArrowLeft
                                 size={16}
                                 style={{
@@ -266,6 +279,7 @@ const Eligibility = () => {
                             />
 
                             Back to Scholarship
+
                         </button>
 
                     </div>
@@ -341,11 +355,15 @@ const Eligibility = () => {
     const scholarship =
         eligibility.scholarship || {};
 
-    const isEligible =
-        eligibility.eligible === true;
+    const isEligible = eligibility.eligible === true;
+    const freeshipCardApproved = eligibility.freeshipCardApproved === true;
+    const needsApplicationDetails = eligibility.needsApplicationDetails === true;
+    const canStartApplication = freeshipCardApproved;
 
     const failedCriteria =
-        eligibility.failedCriteria || {};
+        Array.isArray(eligibility.failedCriteria)
+            ? eligibility.failedCriteria
+            : Object.values(eligibility.failedCriteria || {});
 
     /* ========================================================
        MAIN PAGE
@@ -436,6 +454,7 @@ const Eligibility = () => {
                             )
                         }
                     >
+
                         <ArrowLeft
                             size={16}
                             style={{
@@ -446,6 +465,7 @@ const Eligibility = () => {
                         />
 
                         Back
+
                     </button>
 
                 </div>
@@ -524,9 +544,7 @@ const Eligibility = () => {
                                     '10px 0 0'
                             }}
                         >
-                            Your profile has been checked
-                            against the eligibility criteria
-                            defined for this scholarship.
+                            Eligibility uses your approved Freeship Card. Any additional academic result details are collected in the scholarship application form.
                         </p>
 
                     </div>
@@ -648,11 +666,11 @@ const Eligibility = () => {
                             textAlign:
                                 'center',
                             border:
-                                isEligible
+                                canStartApplication
                                     ? '1px solid #bbf7d0'
                                     : '1px solid #fecaca',
                             background:
-                                isEligible
+                                canStartApplication
                                     ? '#f0fdf4'
                                     : '#fffafa'
                         }}
@@ -673,17 +691,17 @@ const Eligibility = () => {
                                 borderRadius:
                                     '50%',
                                 background:
-                                    isEligible
+                                    canStartApplication
                                         ? '#dcfce7'
                                         : '#fee2e2',
                                 color:
-                                    isEligible
+                                    canStartApplication
                                         ? '#15803d'
                                         : '#b42318'
                             }}
                         >
 
-                            {isEligible ? (
+                            {canStartApplication ? (
                                 <CheckCircle2
                                     size={38}
                                 />
@@ -700,7 +718,7 @@ const Eligibility = () => {
                                 margin:
                                     '0 0 10px',
                                 color:
-                                    isEligible
+                                canStartApplication
                                         ? '#166534'
                                         : '#991b1b',
                                 fontFamily:
@@ -711,7 +729,11 @@ const Eligibility = () => {
                         >
                             {isEligible
                                 ? 'You Are Eligible'
-                                : 'You Are Not Eligible'}
+                                : needsApplicationDetails
+                                    ? 'Academic Details Needed'
+                                    : freeshipCardApproved
+                                        ? 'Freeship Card Approved'
+                                        : 'Freeship Card Approval Required'}
                         </h2>
 
                         <p
@@ -728,10 +750,13 @@ const Eligibility = () => {
                                     1.7
                             }}
                         >
-                            {eligibility.reason ||
-                                (isEligible
-                                    ? 'You meet all eligibility criteria for this scholarship.'
-                                    : 'Your profile does not currently meet all eligibility criteria for this scholarship.')}
+                            {isEligible
+                                ? (eligibility.reason || 'You meet all eligibility criteria for this scholarship.')
+                                : needsApplicationDetails
+                                    ? (eligibility.reason || 'Start the application and enter your result percentage. Eligibility will be checked again before submission.')
+                                    : freeshipCardApproved
+                                        ? 'Your approved Freeship Card unlocks the application form. Complete it and eligibility will be checked when you submit.'
+                                        : (eligibility.reason || 'An approved Freeship Card is required before you can apply.')}
                         </p>
 
                     </div>
@@ -740,10 +765,7 @@ const Eligibility = () => {
                         FAILED CRITERIA
                     ================================================== */}
 
-                    {!isEligible &&
-                        Object.keys(
-                            failedCriteria
-                        ).length > 0 && (
+                    {freeshipCardApproved && !isEligible && !needsApplicationDetails && failedCriteria.length > 0 && (
 
                             <div
                                 className="portal-card"
@@ -783,7 +805,7 @@ const Eligibility = () => {
                                                 '20px'
                                         }}
                                     >
-                                        Eligibility Criteria Not Met
+                                        Some criteria may prevent submission
                                     </h3>
 
                                 </div>
@@ -798,20 +820,10 @@ const Eligibility = () => {
                                     }}
                                 >
 
-                                    {Object.entries(
-                                        failedCriteria
-                                    ).map(
-                                        (
-                                            [
-                                                criterion,
-                                                message
-                                            ]
-                                        ) => (
+                                    {failedCriteria.map((message, index) => (
 
                                             <div
-                                                key={
-                                                    criterion
-                                                }
+                                                key={index}
                                                 style={{
                                                     display:
                                                         'flex',
@@ -858,9 +870,7 @@ const Eligibility = () => {
                                                                 '3px'
                                                         }}
                                                     >
-                                                        {
-                                                            criterion
-                                                        }
+                                                        Requirement {index + 1}
                                                     </div>
 
                                                     <div
@@ -873,17 +883,13 @@ const Eligibility = () => {
                                                                 1.6
                                                         }}
                                                     >
-                                                        {
-                                                            message
-                                                        }
+                                                        {message}
                                                     </div>
 
                                                 </div>
 
                                             </div>
-
-                                        )
-                                    )}
+                                    ))}
 
                                 </div>
 
@@ -895,7 +901,7 @@ const Eligibility = () => {
                         ELIGIBLE ACTION
                     ================================================== */}
 
-                    {isEligible && (
+                    {canStartApplication && (
 
                         <div
                             className="portal-card"
@@ -970,11 +976,9 @@ const Eligibility = () => {
                                                 '14px'
                                         }}
                                     >
-                                        You meet the current
-                                        eligibility requirements.
-                                        You can now proceed to
-                                        create your scholarship
-                                        application.
+                                        {needsApplicationDetails
+                                            ? 'Your Freeship Card is approved. Continue to the application form to add your academic results; eligibility is confirmed again before submission.'
+                                            : 'Your Freeship Card is approved. Complete the scholarship form; eligibility is confirmed when you submit it.'}
                                     </p>
 
                                     <button
@@ -986,6 +990,7 @@ const Eligibility = () => {
                                             )
                                         }
                                     >
+
                                         Start Application
 
                                         <ArrowRight
@@ -1034,6 +1039,7 @@ const Eligibility = () => {
                                 )
                             }
                         >
+
                             <ArrowLeft
                                 size={16}
                                 style={{
@@ -1045,6 +1051,7 @@ const Eligibility = () => {
                             />
 
                             Scholarship Details
+
                         </button>
 
                         <button
@@ -1060,6 +1067,16 @@ const Eligibility = () => {
                         </button>
 
                     </div>
+
+                    {!freeshipCardApproved && (
+                        <button
+                            type="button"
+                            className="portal-button portal-button-primary"
+                            onClick={() => navigate('/student/freeship-card')}
+                        >
+                            Open Freeship Card Application
+                        </button>
+                    )}
 
                 </section>
 

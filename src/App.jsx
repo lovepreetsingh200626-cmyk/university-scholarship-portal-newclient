@@ -8,6 +8,7 @@ import {
     Route,
     Navigate,
     Link,
+    Outlet,
     useNavigate
 } from 'react-router-dom';
 
@@ -17,21 +18,22 @@ import {
     ShieldCheck,
     ArrowRight,
     LogIn,
-    UserPlus
+    UserPlus,
+    Copy,
+    CheckCircle
 } from 'lucide-react';
 
 import authService from './services/authService';
+import ForgotPassword from './pages/ForgotPassword';
+import SetInitialPassword from './pages/student/SetInitialPassword';
 
 
 /* ============================================================
-   PUBLIC / AUTH PAGES
+   STUDENT PAGES
 ============================================================ */
 
 import StudentDashboard
     from './pages/student/StudentDashboard';
-
-import StudentProfile
-    from './pages/student/StudentProfile';
 
 import Scholarships
     from './pages/student/Scholarships';
@@ -48,11 +50,20 @@ import ScholarshipApplication
 import MyApplications
     from './pages/student/MyApplications';
 
+import ApplyOnline
+    from './pages/student/ApplyOnline';
+
+import StudentProfile
+    from './pages/student/StudentProfile';
+
 import ApplicationDocuments
     from './pages/student/ApplicationDocuments';
 
 import ApplicationTracking
     from './pages/student/ApplicationTracking';
+
+import FreeshipCard
+    from './pages/student/FreeshipCard';
 
 
 /* ============================================================
@@ -85,6 +96,12 @@ import AdminStudentDetails
 
 import AdminSettings
     from './pages/admin/AdminSettings';
+
+import AdminFreeshipCards
+    from './pages/admin/AdminFreeshipCards';
+
+import PortalHome
+    from './pages/PortalHome';
 
 
 /* ============================================================
@@ -146,9 +163,7 @@ const Home = () => {
                             type="button"
                             className="portal-button portal-button-secondary"
                             onClick={() =>
-                                navigate(
-                                    '/login'
-                                )
+                                navigate('/login')
                             }
                         >
 
@@ -165,9 +180,7 @@ const Home = () => {
                             type="button"
                             className="portal-button portal-button-primary"
                             onClick={() =>
-                                navigate(
-                                    '/register'
-                                )
+                                navigate('/register')
                             }
                         >
 
@@ -237,9 +250,7 @@ const Home = () => {
                                 type="button"
                                 className="portal-button portal-button-primary"
                                 onClick={() =>
-                                    navigate(
-                                        '/login'
-                                    )
+                                    navigate('/login')
                                 }
                             >
 
@@ -256,9 +267,7 @@ const Home = () => {
                                 type="button"
                                 className="portal-button portal-button-secondary"
                                 onClick={() =>
-                                    navigate(
-                                        '/register'
-                                    )
+                                    navigate('/register')
                                 }
                             >
 
@@ -446,7 +455,7 @@ const Home = () => {
 
 
 /* ============================================================
-   LOGIN PAGE
+   STUDENT LOGIN PAGE
 ============================================================ */
 
 const LoginPage = () => {
@@ -454,7 +463,7 @@ const LoginPage = () => {
     const navigate =
         useNavigate();
 
-    const [email, setEmail] =
+    const [studentId, setStudentId] =
         useState('');
 
     const [password, setPassword] =
@@ -475,13 +484,14 @@ const LoginPage = () => {
 
         setError('');
 
+
         if (
-            !email.trim() ||
+            !studentId.trim() ||
             !password
         ) {
 
             setError(
-                'Please enter your email and password.'
+                'Please enter your Student ID and password.'
             );
 
             return;
@@ -492,9 +502,10 @@ const LoginPage = () => {
 
             setLoading(true);
 
+
             const data =
                 await authService.loginStudent(
-                    email.trim(),
+                    studentId.trim(),
                     password
                 );
 
@@ -519,7 +530,9 @@ const LoginPage = () => {
             } else {
 
                 navigate(
-                    '/student',
+                    data.user?.mustChangePassword
+                        ? '/student/set-password'
+                        : '/student',
                     {
                         replace: true
                     }
@@ -536,7 +549,7 @@ const LoginPage = () => {
 
             setError(
                 error.response?.data?.message ||
-                'Unable to login. Please check your credentials.'
+                'Unable to login. Please check your Student ID and password.'
             );
 
         } finally {
@@ -593,28 +606,26 @@ const LoginPage = () => {
 
                 <form
                     className="auth-form"
-                    onSubmit={
-                        handleSubmit
-                    }
+                    onSubmit={handleSubmit}
                 >
 
                     <div className="form-group">
 
                         <label className="portal-label">
-                            Email Address
+                            Student ID
                         </label>
 
                         <input
-                            type="email"
+                            type="text"
                             className="portal-input"
-                            value={email}
+                            value={studentId}
                             onChange={event =>
-                                setEmail(
+                                setStudentId(
                                     event.target.value
                                 )
                             }
-                            placeholder="Enter your email"
-                            autoComplete="email"
+                            placeholder="Enter your Student ID"
+                            autoComplete="username"
                         />
 
                     </div>
@@ -645,9 +656,7 @@ const LoginPage = () => {
                     <button
                         type="submit"
                         className="portal-button portal-button-primary auth-submit-button"
-                        disabled={
-                            loading
-                        }
+                        disabled={loading}
                     >
 
                         {loading
@@ -660,6 +669,17 @@ const LoginPage = () => {
 
 
                 <div className="auth-footer">
+                    <button
+                        type="button"
+                        className="auth-link-button"
+                        onClick={() => navigate('/forgot-password')}
+                    >
+                        Forgot password? Get an email code
+                    </button>
+                </div>
+
+
+                <div className="auth-footer">
 
                     <span>
                         Don't have a student account?
@@ -668,9 +688,7 @@ const LoginPage = () => {
                     <button
                         type="button"
                         onClick={() =>
-                            navigate(
-                                '/register'
-                            )
+                            navigate('/register')
                         }
                     >
                         Create Account
@@ -684,9 +702,7 @@ const LoginPage = () => {
                     <button
                         type="button"
                         onClick={() =>
-                            navigate(
-                                '/admin/login'
-                            )
+                            navigate('/admin/login')
                         }
                     >
                         Administration Login
@@ -700,9 +716,7 @@ const LoginPage = () => {
                     <button
                         type="button"
                         onClick={() =>
-                            navigate(
-                                '/'
-                            )
+                            navigate('/')
                         }
                     >
                         Back to Portal
@@ -718,13 +732,18 @@ const LoginPage = () => {
 
 
 /* ============================================================
-   REGISTER PAGE
+   STUDENT REGISTER PAGE
 ============================================================ */
 
 const RegisterPage = () => {
 
     const navigate =
         useNavigate();
+
+
+    /* --------------------------------------------------------
+       FORM STATE
+    -------------------------------------------------------- */
 
     const [name, setName] =
         useState('');
@@ -735,21 +754,30 @@ const RegisterPage = () => {
     const [mobile, setMobile] =
         useState('');
 
-    const [password, setPassword] =
-        useState('');
 
-    const [confirmPassword, setConfirmPassword] =
-        useState('');
+    /* --------------------------------------------------------
+       RESPONSE STATE
+    -------------------------------------------------------- */
+
+    const [credentials, setCredentials] =
+        useState(null);
+
+    const [registrationAuth, setRegistrationAuth] =
+        useState(null);
 
     const [error, setError] =
-        useState('');
-
-    const [success, setSuccess] =
         useState('');
 
     const [loading, setLoading] =
         useState(false);
 
+    const [copiedField, setCopiedField] =
+        useState('');
+
+
+    /* --------------------------------------------------------
+       REGISTRATION
+    -------------------------------------------------------- */
 
     const handleSubmit = async (
         event
@@ -758,14 +786,19 @@ const RegisterPage = () => {
         event.preventDefault();
 
         setError('');
-        setSuccess('');
+        setCredentials(null);
+        setRegistrationAuth(null);
+        setCopiedField('');
 
+
+        /* ----------------------------------------------------
+           BASIC VALIDATION
+        ---------------------------------------------------- */
 
         if (
             !name.trim() ||
             !email.trim() ||
-            !password ||
-            !confirmPassword
+            !mobile.trim()
         ) {
 
             setError(
@@ -776,13 +809,10 @@ const RegisterPage = () => {
         }
 
 
-        if (
-            password !==
-            confirmPassword
-        ) {
+        if (!/^\d{10}$/.test(mobile.trim())) {
 
             setError(
-                'Passwords do not match.'
+                'Mobile number must contain exactly 10 digits.'
             );
 
             return;
@@ -793,24 +823,49 @@ const RegisterPage = () => {
 
             setLoading(true);
 
-            await authService.registerStudent(
-                name.trim(),
-                email.trim(),
-                password,
-                mobile.trim()
-            );
+
+            const data =
+                await authService.registerStudent(
+                    name.trim(),
+                    email.trim(),
+                    mobile.trim()
+                );
 
 
-            setSuccess(
-                'Student account created successfully. You can now login.'
-            );
+            /* ------------------------------------------------
+               GENERATED CREDENTIALS
+            ------------------------------------------------ */
+
+            if (
+                !data ||
+                !data.credentials ||
+                !data.credentials.studentId ||
+                !data.credentials.initialPassword
+            ) {
+
+                throw new Error(
+                    'Registration succeeded, but the generated login credentials were not received.'
+                );
+            }
+
+
+            setCredentials({
+                studentId:
+                    data.credentials.studentId,
+
+                initialPassword:
+                    data.credentials.initialPassword
+            });
+
+            setRegistrationAuth({
+                token: data.token,
+                user: data.user
+            });
 
 
             setName('');
             setEmail('');
             setMobile('');
-            setPassword('');
-            setConfirmPassword('');
 
 
         } catch (error) {
@@ -820,8 +875,10 @@ const RegisterPage = () => {
                 error
             );
 
+
             setError(
                 error.response?.data?.message ||
+                error.message ||
                 'Unable to create student account.'
             );
 
@@ -832,6 +889,274 @@ const RegisterPage = () => {
         }
     };
 
+
+    /* --------------------------------------------------------
+       COPY GENERATED CREDENTIAL
+    -------------------------------------------------------- */
+
+    const copyCredential = async (
+        field,
+        value
+    ) => {
+
+        try {
+
+            await navigator.clipboard.writeText(
+                value
+            );
+
+            setCopiedField(
+                field
+            );
+
+
+            setTimeout(
+                () => {
+                    setCopiedField('');
+                },
+                2000
+            );
+
+        } catch (error) {
+
+            console.error(
+                'Copy failed:',
+                error
+            );
+
+            setError(
+                'Unable to copy the credential. Please copy it manually.'
+            );
+        }
+    };
+
+
+    /* --------------------------------------------------------
+       SUCCESS / CREDENTIAL SCREEN
+    -------------------------------------------------------- */
+
+    if (credentials) {
+
+        return (
+
+            <div className="auth-page">
+
+                <div className="auth-card">
+
+                    <div className="auth-header">
+
+                        <div className="brand-emblem">
+
+                            <CheckCircle
+                                size={27}
+                            />
+
+                        </div>
+
+
+                        <h1 className="portal-heading">
+
+                            Registration Successful
+
+                        </h1>
+
+
+                        <p className="portal-text">
+
+                            Your student account has been created
+                            successfully.
+
+                        </p>
+
+                    </div>
+
+
+                    <div className="auth-success">
+
+                        Save these credentials carefully.
+                        You will need them to sign in.
+
+                    </div>
+
+
+                    <div className="form-group">
+
+                        <label className="portal-label">
+                            Student ID
+                        </label>
+
+
+                        <div
+                            style={{
+                                display: 'flex',
+                                gap: '8px'
+                            }}
+                        >
+
+                            <input
+                                type="text"
+                                className="portal-input"
+                                value={
+                                    credentials.studentId
+                                }
+                                readOnly
+                            />
+
+
+                            <button
+                                type="button"
+                                className="portal-button portal-button-secondary"
+                                onClick={() =>
+                                    copyCredential(
+                                        'studentId',
+                                        credentials.studentId
+                                    )
+                                }
+                                title="Copy Student ID"
+                            >
+
+                                {copiedField ===
+                                'studentId'
+                                    ? (
+                                        <CheckCircle
+                                            size={17}
+                                        />
+                                    )
+                                    : (
+                                        <Copy
+                                            size={17}
+                                        />
+                                    )}
+
+                            </button>
+
+                        </div>
+
+                    </div>
+
+
+                    <div className="form-group">
+
+                        <label className="portal-label">
+                            Initial Password
+                        </label>
+
+
+                        <div
+                            style={{
+                                display: 'flex',
+                                gap: '8px'
+                            }}
+                        >
+
+                            <input
+                                type="text"
+                                className="portal-input"
+                                value={
+                                    credentials.initialPassword
+                                }
+                                readOnly
+                            />
+
+
+                            <button
+                                type="button"
+                                className="portal-button portal-button-secondary"
+                                onClick={() =>
+                                    copyCredential(
+                                        'password',
+                                        credentials.initialPassword
+                                    )
+                                }
+                                title="Copy Initial Password"
+                            >
+
+                                {copiedField ===
+                                'password'
+                                    ? (
+                                        <CheckCircle
+                                            size={17}
+                                        />
+                                    )
+                                    : (
+                                        <Copy
+                                            size={17}
+                                        />
+                                    )}
+
+                            </button>
+
+                        </div>
+
+                    </div>
+
+
+                    <div className="auth-error">
+
+                        <strong>
+                            Important:
+                        </strong>
+                        {' '}
+                        This initial password should be saved
+                        securely. Continue to set a new password
+                        before you enter the student portal.
+
+                    </div>
+
+                    {error && (
+                        <div className="auth-error" role="alert">
+                            {error}
+                        </div>
+                    )}
+
+
+                    <button
+                        type="button"
+                        className="portal-button portal-button-primary auth-submit-button"
+                        onClick={() => {
+                            try {
+                                authService.saveAuthData(registrationAuth);
+                                navigate('/student/set-password', { replace: true });
+                            } catch {
+                                setError(
+                                    'Unable to start password setup. Please sign in with the Student ID and initial password.'
+                                );
+                            }
+                        }}
+                    >
+
+                        Continue to Student
+
+                        <ArrowRight
+                            size={18}
+                        />
+
+                    </button>
+
+
+                    <div className="auth-footer">
+
+                        <button
+                            type="button"
+                            onClick={() =>
+                                navigate('/')
+                            }
+                        >
+                            Back to Portal
+                        </button>
+
+                    </div>
+
+                </div>
+
+            </div>
+        );
+    }
+
+
+    /* --------------------------------------------------------
+       REGISTRATION FORM
+    -------------------------------------------------------- */
 
     return (
 
@@ -878,22 +1203,9 @@ const RegisterPage = () => {
                 )}
 
 
-                {success && (
-
-                    <div className="auth-success">
-
-                        {success}
-
-                    </div>
-
-                )}
-
-
                 <form
                     className="auth-form"
-                    onSubmit={
-                        handleSubmit
-                    }
+                    onSubmit={handleSubmit}
                 >
 
                     <div className="form-group">
@@ -912,6 +1224,8 @@ const RegisterPage = () => {
                                 )
                             }
                             placeholder="Enter your full name"
+                            autoComplete="name"
+                            required
                         />
 
                     </div>
@@ -933,6 +1247,8 @@ const RegisterPage = () => {
                                 )
                             }
                             placeholder="Enter your email"
+                            autoComplete="email"
+                            required
                         />
 
                     </div>
@@ -941,7 +1257,7 @@ const RegisterPage = () => {
                     <div className="form-group">
 
                         <label className="portal-label">
-                            Mobile Number
+                            Mobile Number *
                         </label>
 
                         <input
@@ -953,49 +1269,11 @@ const RegisterPage = () => {
                                     event.target.value
                                 )
                             }
-                            placeholder="Enter your mobile number"
-                        />
-
-                    </div>
-
-
-                    <div className="form-group">
-
-                        <label className="portal-label">
-                            Password *
-                        </label>
-
-                        <input
-                            type="password"
-                            className="portal-input"
-                            value={password}
-                            onChange={event =>
-                                setPassword(
-                                    event.target.value
-                                )
-                            }
-                            placeholder="Create a password"
-                        />
-
-                    </div>
-
-
-                    <div className="form-group">
-
-                        <label className="portal-label">
-                            Confirm Password *
-                        </label>
-
-                        <input
-                            type="password"
-                            className="portal-input"
-                            value={confirmPassword}
-                            onChange={event =>
-                                setConfirmPassword(
-                                    event.target.value
-                                )
-                            }
-                            placeholder="Confirm your password"
+                            placeholder="Enter your 10-digit mobile number"
+                            autoComplete="tel"
+                            maxLength={10}
+                            inputMode="numeric"
+                            required
                         />
 
                     </div>
@@ -1004,14 +1282,12 @@ const RegisterPage = () => {
                     <button
                         type="submit"
                         className="portal-button portal-button-primary auth-submit-button"
-                        disabled={
-                            loading
-                        }
+                        disabled={loading}
                     >
 
                         {loading
                             ? 'Creating Account...'
-                            : 'Create Account'}
+                            : 'Create Student Account'}
 
                     </button>
 
@@ -1027,9 +1303,7 @@ const RegisterPage = () => {
                     <button
                         type="button"
                         onClick={() =>
-                            navigate(
-                                '/login'
-                            )
+                            navigate('/login')
                         }
                     >
                         Student Login
@@ -1043,9 +1317,7 @@ const RegisterPage = () => {
                     <button
                         type="button"
                         onClick={() =>
-                            navigate(
-                                '/'
-                            )
+                            navigate('/')
                         }
                     >
                         Back to Portal
@@ -1079,7 +1351,7 @@ const App = () => {
                 <Route
                     path="/"
                     element={
-                        <Home />
+                        <PortalHome />
                     }
                 />
 
@@ -1093,9 +1365,25 @@ const App = () => {
 
 
                 <Route
+                    path="/forgot-password"
+                    element={
+                        <ForgotPassword />
+                    }
+                />
+
+
+                <Route
                     path="/register"
                     element={
                         <RegisterPage />
+                    }
+                />
+
+
+                <Route
+                    path="/student/set-password"
+                    element={
+                        <SetInitialPassword />
                     }
                 />
 
@@ -1148,6 +1436,14 @@ const App = () => {
 
 
                     <Route
+                        path="freeship-cards"
+                        element={
+                            <AdminFreeshipCards />
+                        }
+                    />
+
+
+                    <Route
                         path="scholarships"
                         element={
                             <AdminScholarships />
@@ -1187,74 +1483,63 @@ const App = () => {
 
                 <Route
                     path="/student"
-                    element={
-                        <StudentDashboard />
-                    }
-                />
+                    element={<StudentPasswordGate />}
+                >
+                    <Route
+                        index
+                        element={<StudentDashboard />}
+                    />
 
+                    <Route
+                        path="freeship-card"
+                        element={<FreeshipCard />}
+                    />
 
-                <Route
-                    path="/student/profile"
-                    element={
-                        <StudentProfile />
-                    }
-                />
+                    <Route
+                        path="profile"
+                        element={<StudentProfile />}
+                    />
 
+                    <Route
+                        path="apply-online"
+                        element={<ApplyOnline />}
+                    />
 
-                <Route
-                    path="/student/scholarships"
-                    element={
-                        <Scholarships />
-                    }
-                />
+                    <Route
+                        path="scholarships"
+                        element={<Scholarships />}
+                    />
 
+                    <Route
+                        path="scholarships/:id"
+                        element={<ScholarshipDetails />}
+                    />
 
-                <Route
-                    path="/student/scholarships/:id"
-                    element={
-                        <ScholarshipDetails />
-                    }
-                />
+                    <Route
+                        path="scholarships/:id/eligibility"
+                        element={<Eligibility />}
+                    />
 
+                    <Route
+                        path="scholarships/:id/application"
+                        element={<ScholarshipApplication />}
+                    />
 
-                <Route
-                    path="/student/scholarships/:id/eligibility"
-                    element={
-                        <Eligibility />
-                    }
-                />
+                    <Route
+                        path="applications"
+                        element={<MyApplications />}
+                    />
 
+                    <Route
+                        path="applications/:id"
+                        element={<ApplicationTracking />}
+                    />
 
-                <Route
-                    path="/student/scholarships/:id/application"
-                    element={
-                        <ScholarshipApplication />
-                    }
-                />
-
-
-                <Route
-                    path="/student/applications"
-                    element={
-                        <MyApplications />
-                    }
-                />
-
-
-                <Route
-                    path="/student/applications/:id"
-                    element={
-                        <ApplicationTracking />
-                    }
-                />
-
-
-                <Route
-                    path="/student/applications/:id/documents"
-                    element={
-                        <ApplicationDocuments />
-                    }
-                />
+                    <Route
+                        path="applications/:id/documents"
+                        element={<ApplicationDocuments />}
+                    />
+                </Route>
 
 
                 {/* =================================================
@@ -1275,6 +1560,20 @@ const App = () => {
 
         </BrowserRouter>
     );
+};
+
+const StudentPasswordGate = () => {
+    const user = authService.getCurrentUser();
+
+    if (
+        authService.isAuthenticated() &&
+        user?.role === 'student' &&
+        user.mustChangePassword
+    ) {
+        return <Navigate to="/student/set-password" replace />;
+    }
+
+    return <Outlet />;
 };
 
 

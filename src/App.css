@@ -443,6 +443,31 @@
     font-weight: 600;
 }
 
+.auth-success {
+    margin-bottom: 18px;
+    border: 1px solid #b7dfc9;
+    border-radius: 6px;
+    padding: 11px 13px;
+    color: #17623d;
+    background: #effaf3;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.auth-link-button {
+    align-self: center;
+    border: 0;
+    padding: 4px 8px;
+    color: #174a8b;
+    background: transparent;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 650;
+    cursor: pointer;
+}
+
+.auth-link-button:hover { text-decoration: underline; }
+
 /* ============================================================
    RESPONSIVE
 ============================================================ */
@@ -502,5 +527,54 @@
 
     .auth-card {
         padding: 24px 20px;
+    }
+
+    .auth-page {
+        min-height: 100dvh;
+        align-items: flex-start;
+        padding: 12px 10px;
+    }
+
+    .auth-card {
+        max-width: 440px;
+        padding: 20px 16px;
+        margin: 0 auto;
+    }
+
+    .auth-header {
+        margin-bottom: 18px;
+    }
+
+    .auth-header h1 {
+        font-size: 25px;
+    }
+
+    .auth-header p {
+        margin-top: 6px;
+        font-size: 12px;
+    }
+
+    .auth-form {
+        gap: 13px;
+    }
+
+    .auth-footer {
+        margin-top: 13px;
+        padding-top: 12px;
+        font-size: 12px;
+    }
+
+    .auth-footer button:not(.auth-link-button) {
+        display: inline-flex;
+        min-height: 32px;
+        align-items: center;
+        justify-content: center;
+        border: 0;
+        padding: 4px 8px;
+        color: #174a8b;
+        background: transparent;
+        font: inherit;
+        font-size: 12px;
+        font-weight: 650;
     }
 }

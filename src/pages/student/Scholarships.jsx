@@ -1,4 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, {
+    useEffect,
+    useMemo,
+    useState
+} from 'react';
+
 import {
     ArrowLeft,
     BookOpen,
@@ -12,10 +17,13 @@ import {
     ShieldCheck
 } from 'lucide-react';
 
-import { useNavigate } from 'react-router-dom';
+import {
+    useNavigate
+} from 'react-router-dom';
 
 import API from '../../services/api';
 import authService from '../../services/authService';
+
 
 /* ============================================================
    SCHOLARSHIPS PAGE
@@ -25,108 +33,144 @@ const Scholarships = () => {
 
     const navigate = useNavigate();
 
-    const [scholarships, setScholarships] =
-        useState([]);
+    const [
+        scholarships,
+        setScholarships
+    ] = useState([]);
 
-    const [loading, setLoading] =
-        useState(true);
+    const [
+        loading,
+        setLoading
+    ] = useState(true);
 
-    const [error, setError] =
-        useState('');
+    const [
+        error,
+        setError
+    ] = useState('');
 
-    const [searchTerm, setSearchTerm] =
-        useState('');
+    const [
+        searchTerm,
+        setSearchTerm
+    ] = useState('');
+
 
     /* ========================================================
        LOAD SCHOLARSHIPS
     ======================================================== */
 
     useEffect(() => {
-        loadScholarships();
-    }, []);
 
-    const loadScholarships = async () => {
+        let mounted = true;
 
-        try {
+        const loadScholarships = async () => {
 
-            setLoading(true);
-            setError('');
+            try {
 
-            const token =
-                authService.getToken();
+                setLoading(true);
+                setError('');
 
-            if (!token) {
-                navigate('/login');
-                return;
-            }
+                if (
+                    !authService.isAuthenticated()
+                ) {
+                    navigate('/login', {
+                        replace: true
+                    });
 
-            const response =
-                await API.get(
-                    '/scholarships',
-                    {
-                        headers: {
-                            Authorization:
-                                `Bearer ${token}`
-                        }
-                    }
+                    return;
+                }
+
+                /*
+                 * api.js automatically attaches:
+                 *
+                 * Authorization:
+                 * Bearer <token>
+                 *
+                 * Therefore we do not manually
+                 * attach the token here.
+                 */
+
+                const response =
+                    await API.get(
+                        '/scholarships'
+                    );
+
+                if (!mounted) {
+                    return;
+                }
+
+                const data =
+                    response.data;
+
+                if (
+                    data &&
+                    Array.isArray(
+                        data.scholarships
+                    )
+                ) {
+                    setScholarships(
+                        data.scholarships
+                    );
+                } else {
+                    setScholarships([]);
+                }
+
+            } catch (requestError) {
+
+                if (!mounted) {
+                    return;
+                }
+
+                console.error(
+                    'Scholarship loading error:',
+                    requestError
                 );
 
-            const data =
-                response.data;
+                if (
+                    requestError.response &&
+                    requestError.response.status === 401
+                ) {
+                    authService.logout();
 
-            if (
-                data &&
-                Array.isArray(data.scholarships)
-            ) {
-                setScholarships(
-                    data.scholarships
-                );
-            } else {
-                setScholarships([]);
-            }
+                    navigate('/login', {
+                        replace: true
+                    });
 
-        } catch (error) {
+                    return;
+                }
 
-            console.error(
-                'Scholarship loading error:',
-                error
-            );
-
-            if (
-                error.response &&
-                error.response.status === 401
-            ) {
-                authService.logout();
-                navigate('/login');
-                return;
-            }
-
-            if (
-                error.response &&
-                error.response.data &&
-                error.response.data.message
-            ) {
                 setError(
-                    error.response.data.message
-                );
-            } else {
-                setError(
+                    requestError
+                        ?.response
+                        ?.data
+                        ?.message ||
                     'Unable to load scholarships. Please try again.'
                 );
+
+            } finally {
+
+                if (mounted) {
+                    setLoading(false);
+                }
+
             }
+        };
 
-        } finally {
+        loadScholarships();
 
-            setLoading(false);
+        return () => {
+            mounted = false;
+        };
 
-        }
-    };
+    }, [navigate]);
+
 
     /* ========================================================
        DATE FORMATTER
     ======================================================== */
 
-    const formatDate = (date) => {
+    const formatDate = (
+        date
+    ) => {
 
         if (!date) {
             return 'Not specified';
@@ -153,21 +197,32 @@ const Scholarships = () => {
         );
     };
 
+
     /* ========================================================
-       CHECK APPLICATION STATUS
+       DEADLINE INFORMATION
     ======================================================== */
 
-    const getDeadlineStatus = (endDate) => {
+    const getDeadlineStatus = (
+        endDate
+    ) => {
 
         if (!endDate) {
             return 'Deadline not specified';
         }
 
-        const today =
-            new Date();
-
         const deadline =
             new Date(endDate);
+
+        if (
+            Number.isNaN(
+                deadline.getTime()
+            )
+        ) {
+            return 'Deadline not specified';
+        }
+
+        const today =
+            new Date();
 
         today.setHours(
             0,
@@ -190,87 +245,194 @@ const Scholarships = () => {
         const daysRemaining =
             Math.ceil(
                 difference /
-                (1000 * 60 * 60 * 24)
+                (
+                    1000 *
+                    60 *
+                    60 *
+                    24
+                )
             );
 
-        if (daysRemaining < 0) {
+        if (
+            daysRemaining < 0
+        ) {
             return 'Application closed';
         }
 
-        if (daysRemaining === 0) {
+        if (
+            daysRemaining === 0
+        ) {
             return 'Deadline is today';
         }
 
-        if (daysRemaining === 1) {
+        if (
+            daysRemaining === 1
+        ) {
             return '1 day remaining';
         }
 
         return `${daysRemaining} days remaining`;
     };
 
+
+    /* ========================================================
+       CHECK WHETHER DEADLINE HAS PASSED
+    ======================================================== */
+
+    const isDeadlinePassed = (
+        endDate
+    ) => {
+
+        if (!endDate) {
+            return false;
+        }
+
+        const deadline =
+            new Date(endDate);
+
+        if (
+            Number.isNaN(
+                deadline.getTime()
+            )
+        ) {
+            return false;
+        }
+
+        const today =
+            new Date();
+
+        today.setHours(
+            0,
+            0,
+            0,
+            0
+        );
+
+        deadline.setHours(
+            0,
+            0,
+            0,
+            0
+        );
+
+        return (
+            deadline.getTime() <
+            today.getTime()
+        );
+    };
+
+
     /* ========================================================
        FILTER SCHOLARSHIPS
     ======================================================== */
 
     const filteredScholarships =
-        scholarships.filter(
-            (scholarship) => {
+        useMemo(() => {
 
-                const search =
-                    searchTerm
-                        .trim()
-                        .toLowerCase();
+            const search =
+                searchTerm
+                    .trim()
+                    .toLowerCase();
 
-                if (!search) {
-                    return true;
-                }
-
-                const name =
-                    scholarship.name ||
-                    '';
-
-                const description =
-                    scholarship.description ||
-                    '';
-
-                const academicYear =
-                    scholarship.academicYear ||
-                    '';
-
-                const courses =
-                    Array.isArray(
-                        scholarship.eligibleCourses
-                    )
-                        ? scholarship.eligibleCourses.join(' ')
-                        : '';
-
-                const departments =
-                    Array.isArray(
-                        scholarship.eligibleDepartments
-                    )
-                        ? scholarship.eligibleDepartments.join(' ')
-                        : '';
-
-                return (
-                    name.toLowerCase().includes(search) ||
-                    description.toLowerCase().includes(search) ||
-                    academicYear.toLowerCase().includes(search) ||
-                    courses.toLowerCase().includes(search) ||
-                    departments.toLowerCase().includes(search)
-                );
+            if (!search) {
+                return scholarships;
             }
-        );
+
+            return scholarships.filter(
+                (
+                    scholarship
+                ) => {
+
+                    const name =
+                        scholarship.name ||
+                        '';
+
+                    const description =
+                        scholarship.description ||
+                        '';
+
+                    const academicYear =
+                        scholarship.academicYear ||
+                        '';
+
+                    const courses =
+                        Array.isArray(
+                            scholarship.eligibleCourses
+                        )
+                            ? scholarship
+                                .eligibleCourses
+                                .join(' ')
+                            : '';
+
+                    const departments =
+                        Array.isArray(
+                            scholarship.eligibleDepartments
+                        )
+                            ? scholarship
+                                .eligibleDepartments
+                                .join(' ')
+                            : '';
+
+                    const categories =
+                        Array.isArray(
+                            scholarship.eligibleCategories
+                        )
+                            ? scholarship
+                                .eligibleCategories
+                                .join(' ')
+                            : '';
+
+                    return (
+                        name
+                            .toLowerCase()
+                            .includes(search) ||
+
+                        description
+                            .toLowerCase()
+                            .includes(search) ||
+
+                        academicYear
+                            .toLowerCase()
+                            .includes(search) ||
+
+                        courses
+                            .toLowerCase()
+                            .includes(search) ||
+
+                        departments
+                            .toLowerCase()
+                            .includes(search) ||
+
+                        categories
+                            .toLowerCase()
+                            .includes(search)
+                    );
+                }
+            );
+
+        }, [
+            scholarships,
+            searchTerm
+        ]);
+
 
     /* ========================================================
        OPEN SCHOLARSHIP
     ======================================================== */
 
-    const openScholarship = (id) => {
+    const openScholarship = (
+        id
+    ) => {
+
+        if (!id) {
+            return;
+        }
 
         navigate(
             `/student/scholarships/${id}`
         );
     };
+
 
     /* ========================================================
        LOADING STATE
@@ -281,39 +443,48 @@ const Scholarships = () => {
         return (
             <div
                 style={{
-                    minHeight: '100vh',
-                    background: '#f5f7fb'
+                    minHeight:
+                        '100vh',
+                    background:
+                        '#f5f7fb'
                 }}
             >
 
                 <div
                     className="portal-container"
                     style={{
-                        paddingTop: '50px',
-                        paddingBottom: '50px'
+                        paddingTop:
+                            '50px',
+                        paddingBottom:
+                            '50px'
                     }}
                 >
 
                     <div
                         className="portal-card"
                         style={{
-                            padding: '50px',
-                            textAlign: 'center'
+                            padding:
+                                '50px',
+                            textAlign:
+                                'center'
                         }}
                     >
 
                         <Clock3
                             size={32}
                             style={{
-                                color: '#174a8b',
-                                margin: '0 auto 16px'
+                                color:
+                                    '#174a8b',
+                                margin:
+                                    '0 auto 16px'
                             }}
                         />
 
                         <h2
                             className="portal-heading"
                             style={{
-                                fontSize: '24px'
+                                fontSize:
+                                    '24px'
                             }}
                         >
                             Loading Scholarships
@@ -322,7 +493,8 @@ const Scholarships = () => {
                         <p
                             className="portal-text"
                             style={{
-                                marginBottom: 0
+                                marginBottom:
+                                    0
                             }}
                         >
                             Please wait while we load
@@ -337,6 +509,7 @@ const Scholarships = () => {
         );
     }
 
+
     /* ========================================================
        MAIN PAGE
     ======================================================== */
@@ -344,8 +517,10 @@ const Scholarships = () => {
     return (
         <div
             style={{
-                minHeight: '100vh',
-                background: '#f5f7fb'
+                minHeight:
+                    '100vh',
+                background:
+                    '#f5f7fb'
             }}
         >
 
@@ -355,7 +530,8 @@ const Scholarships = () => {
 
             <header
                 style={{
-                    background: '#ffffff',
+                    background:
+                        '#ffffff',
                     borderBottom:
                         '1px solid #e2e8f0',
                     boxShadow:
@@ -366,36 +542,50 @@ const Scholarships = () => {
                 <div
                     className="portal-container"
                     style={{
-                        minHeight: '76px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: '20px'
+                        minHeight:
+                            '76px',
+                        display:
+                            'flex',
+                        alignItems:
+                            'center',
+                        justifyContent:
+                            'space-between',
+                        gap:
+                            '20px'
                     }}
                 >
 
                     <div
                         style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '14px'
+                            display:
+                                'flex',
+                            alignItems:
+                                'center',
+                            gap:
+                                '14px'
                         }}
                     >
 
                         <div
                             className="brand-emblem"
                         >
-                            <BookOpen size={21} />
+                            <BookOpen
+                                size={21}
+                            />
                         </div>
 
                         <div>
 
                             <h1
                                 style={{
-                                    margin: 0,
-                                    color: '#172033',
-                                    fontSize: '18px',
-                                    fontWeight: 700
+                                    margin:
+                                        0,
+                                    color:
+                                        '#172033',
+                                    fontSize:
+                                        '18px',
+                                    fontWeight:
+                                        700
                                 }}
                             >
                                 University Scholarship Portal
@@ -403,9 +593,12 @@ const Scholarships = () => {
 
                             <p
                                 style={{
-                                    margin: '3px 0 0',
-                                    color: '#64748b',
-                                    fontSize: '12px'
+                                    margin:
+                                        '3px 0 0',
+                                    color:
+                                        '#64748b',
+                                    fontSize:
+                                        '12px'
                                 }}
                             >
                                 Available Scholarships
@@ -422,20 +615,25 @@ const Scholarships = () => {
                             navigate('/student')
                         }
                     >
+
                         <ArrowLeft
                             size={16}
                             style={{
-                                marginRight: '7px',
-                                verticalAlign: 'middle'
+                                marginRight:
+                                    '7px',
+                                verticalAlign:
+                                    'middle'
                             }}
                         />
 
                         Dashboard
+
                     </button>
 
                 </div>
 
             </header>
+
 
             {/* =================================================
                 MAIN CONTENT
@@ -446,8 +644,10 @@ const Scholarships = () => {
                 <section
                     className="portal-container"
                     style={{
-                        paddingTop: '42px',
-                        paddingBottom: '60px'
+                        paddingTop:
+                            '42px',
+                        paddingBottom:
+                            '60px'
                     }}
                 >
 
@@ -457,26 +657,39 @@ const Scholarships = () => {
 
                     <div
                         style={{
-                            marginBottom: '28px'
+                            marginBottom:
+                                '28px'
                         }}
                     >
 
                         <div
                             style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '7px',
-                                marginBottom: '12px',
-                                padding: '6px 11px',
-                                borderRadius: '999px',
-                                background: '#eaf1fb',
-                                color: '#174a8b',
-                                fontSize: '12px',
-                                fontWeight: 700
+                                display:
+                                    'inline-flex',
+                                alignItems:
+                                    'center',
+                                gap:
+                                    '7px',
+                                marginBottom:
+                                    '12px',
+                                padding:
+                                    '6px 11px',
+                                borderRadius:
+                                    '999px',
+                                background:
+                                    '#eaf1fb',
+                                color:
+                                    '#174a8b',
+                                fontSize:
+                                    '12px',
+                                fontWeight:
+                                    700
                             }}
                         >
 
-                            <ShieldCheck size={14} />
+                            <ShieldCheck
+                                size={14}
+                            />
 
                             Official Scholarship Services
 
@@ -495,7 +708,8 @@ const Scholarships = () => {
                         <p
                             className="portal-text"
                             style={{
-                                maxWidth: '720px',
+                                maxWidth:
+                                    '720px',
                                 margin:
                                     '10px 0 0'
                             }}
@@ -508,27 +722,38 @@ const Scholarships = () => {
 
                     </div>
 
+
                     {/* =================================================
                         ERROR
                     ================================================== */}
 
                     {error && (
+
                         <div
                             style={{
-                                marginBottom: '24px',
-                                padding: '14px 16px',
-                                borderRadius: '9px',
-                                background: '#fee2e2',
+                                marginBottom:
+                                    '24px',
+                                padding:
+                                    '14px 16px',
+                                borderRadius:
+                                    '9px',
+                                background:
+                                    '#fee2e2',
                                 border:
                                     '1px solid #fecaca',
-                                color: '#991b1b',
-                                fontSize: '14px',
-                                lineHeight: 1.5
+                                color:
+                                    '#991b1b',
+                                fontSize:
+                                    '14px',
+                                lineHeight:
+                                    1.5
                             }}
                         >
                             {error}
                         </div>
+
                     )}
+
 
                     {/* =================================================
                         SEARCH
@@ -537,41 +762,53 @@ const Scholarships = () => {
                     <div
                         className="portal-card"
                         style={{
-                            marginBottom: '28px',
-                            padding: '16px'
+                            marginBottom:
+                                '28px',
+                            padding:
+                                '16px'
                         }}
                     >
 
                         <div
                             style={{
-                                position: 'relative'
+                                position:
+                                    'relative'
                             }}
                         >
 
                             <Search
                                 size={19}
                                 style={{
-                                    position: 'absolute',
-                                    left: '14px',
-                                    top: '50%',
+                                    position:
+                                        'absolute',
+                                    left:
+                                        '14px',
+                                    top:
+                                        '50%',
                                     transform:
                                         'translateY(-50%)',
-                                    color: '#64748b'
+                                    color:
+                                        '#64748b'
                                 }}
                             />
 
                             <input
                                 type="text"
                                 className="portal-input"
-                                value={searchTerm}
-                                onChange={(event) =>
+                                value={
+                                    searchTerm
+                                }
+                                onChange={(
+                                    event
+                                ) =>
                                     setSearchTerm(
                                         event.target.value
                                     )
                                 }
                                 placeholder="Search scholarships by name, course, department or academic year..."
                                 style={{
-                                    paddingLeft: '44px'
+                                    paddingLeft:
+                                        '44px'
                                 }}
                             />
 
@@ -579,25 +816,34 @@ const Scholarships = () => {
 
                     </div>
 
+
                     {/* =================================================
                         RESULT COUNT
                     ================================================== */}
 
                     <div
                         style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: '15px',
-                            marginBottom: '18px'
+                            display:
+                                'flex',
+                            alignItems:
+                                'center',
+                            justifyContent:
+                                'space-between',
+                            gap:
+                                '15px',
+                            marginBottom:
+                                '18px'
                         }}
                     >
 
                         <h3
                             style={{
-                                margin: 0,
-                                color: '#172033',
-                                fontSize: '18px'
+                                margin:
+                                    0,
+                                color:
+                                    '#172033',
+                                fontSize:
+                                    '18px'
                             }}
                         >
                             Scholarships
@@ -606,14 +852,17 @@ const Scholarships = () => {
                         <span
                             className="portal-status portal-status-neutral"
                         >
-                            {filteredScholarships.length}
-                            {' '}
-                            {filteredScholarships.length === 1
-                                ? 'scholarship'
-                                : 'scholarships'}
+                            {filteredScholarships.length}{' '}
+                            {
+                                filteredScholarships.length ===
+                                1
+                                    ? 'scholarship'
+                                    : 'scholarships'
+                            }
                         </span>
 
                     </div>
+
 
                     {/* =================================================
                         EMPTY STATE
@@ -624,16 +873,20 @@ const Scholarships = () => {
                         <div
                             className="portal-card"
                             style={{
-                                padding: '55px 25px',
-                                textAlign: 'center'
+                                padding:
+                                    '55px 25px',
+                                textAlign:
+                                    'center'
                             }}
                         >
 
                             <FileText
                                 size={40}
                                 style={{
-                                    color: '#94a3b8',
-                                    margin: '0 auto 16px'
+                                    color:
+                                        '#94a3b8',
+                                    margin:
+                                        '0 auto 16px'
                                 }}
                             />
 
@@ -641,8 +894,10 @@ const Scholarships = () => {
                                 style={{
                                     margin:
                                         '0 0 8px',
-                                    color: '#172033',
-                                    fontSize: '20px'
+                                    color:
+                                        '#172033',
+                                    fontSize:
+                                        '20px'
                                 }}
                             >
                                 No Scholarships Found
@@ -651,7 +906,8 @@ const Scholarships = () => {
                             <p
                                 className="portal-text"
                                 style={{
-                                    maxWidth: '500px',
+                                    maxWidth:
+                                        '500px',
                                     margin:
                                         '0 auto'
                                 }}
@@ -665,6 +921,7 @@ const Scholarships = () => {
 
                     )}
 
+
                     {/* =================================================
                         SCHOLARSHIP CARDS
                     ================================================== */}
@@ -673,307 +930,340 @@ const Scholarships = () => {
 
                         <div
                             style={{
-                                display: 'grid',
+                                display:
+                                    'grid',
                                 gridTemplateColumns:
                                     'repeat(auto-fit, minmax(320px, 1fr))',
-                                gap: '20px'
+                                gap:
+                                    '20px'
                             }}
                         >
 
                             {filteredScholarships.map(
-                                (scholarship) => (
+                                (
+                                    scholarship
+                                ) => {
 
-                                    <div
-                                        key={
-                                            scholarship._id
-                                        }
-                                        className="portal-card"
-                                        style={{
-                                            padding: '24px',
-                                            display: 'flex',
-                                            flexDirection:
-                                                'column',
-                                            transition:
-                                                'transform 0.2s ease, box-shadow 0.2s ease'
-                                        }}
-                                    >
+                                    const deadlinePassed =
+                                        isDeadlinePassed(
+                                            scholarship.applicationEndDate
+                                        );
 
-                                        {/* ============================
-                                            CARD HEADER
-                                        ============================= */}
+                                    return (
 
                                         <div
+                                            key={
+                                                scholarship._id
+                                            }
+                                            className="portal-card"
                                             style={{
-                                                display: 'flex',
-                                                justifyContent:
-                                                    'space-between',
-                                                alignItems:
-                                                    'flex-start',
-                                                gap: '15px',
-                                                marginBottom:
-                                                    '16px'
+                                                padding:
+                                                    '24px',
+                                                display:
+                                                    'flex',
+                                                flexDirection:
+                                                    'column',
+                                                transition:
+                                                    'transform 0.2s ease, box-shadow 0.2s ease'
                                             }}
                                         >
 
+                                            {/* ============================
+                                                CARD HEADER
+                                            ============================= */}
+
                                             <div
                                                 style={{
-                                                    width: '46px',
-                                                    height: '46px',
-                                                    flexShrink: 0,
                                                     display:
                                                         'flex',
-                                                    alignItems:
-                                                        'center',
                                                     justifyContent:
-                                                        'center',
-                                                    borderRadius:
-                                                        '10px',
-                                                    background:
-                                                        '#eaf1fb',
-                                                    color:
-                                                        '#174a8b'
-                                                }}
-                                            >
-                                                <GraduationCap
-                                                    size={22}
-                                                />
-                                            </div>
-
-                                            <span
-                                                className="portal-status portal-status-success"
-                                            >
-                                                Published
-                                            </span>
-
-                                        </div>
-
-                                        {/* ============================
-                                            NAME
-                                        ============================= */}
-
-                                        <h3
-                                            style={{
-                                                margin:
-                                                    '0 0 9px',
-                                                color:
-                                                    '#172033',
-                                                fontSize:
-                                                    '20px',
-                                                lineHeight:
-                                                    1.35
-                                            }}
-                                        >
-                                            {
-                                                scholarship.name
-                                            }
-                                        </h3>
-
-                                        {/* ============================
-                                            DESCRIPTION
-                                        ============================= */}
-
-                                        <p
-                                            style={{
-                                                margin:
-                                                    '0 0 20px',
-                                                color:
-                                                    '#64748b',
-                                                fontSize:
-                                                    '14px',
-                                                lineHeight:
-                                                    1.7
-                                            }}
-                                        >
-                                            {
-                                                scholarship.description
-                                            }
-                                        </p>
-
-                                        {/* ============================
-                                            DETAILS
-                                        ============================= */}
-
-                                        <div
-                                            style={{
-                                                display:
-                                                    'grid',
-                                                gridTemplateColumns:
-                                                    '1fr 1fr',
-                                                gap:
-                                                    '12px',
-                                                marginBottom:
-                                                    '20px'
-                                            }}
-                                        >
-
-                                            <div
-                                                style={{
-                                                    padding:
-                                                        '12px',
-                                                    borderRadius:
-                                                        '8px',
-                                                    background:
-                                                        '#f8fafc'
+                                                        'space-between',
+                                                    alignItems:
+                                                        'flex-start',
+                                                    gap:
+                                                        '15px',
+                                                    marginBottom:
+                                                        '16px'
                                                 }}
                                             >
 
                                                 <div
                                                     style={{
+                                                        width:
+                                                            '46px',
+                                                        height:
+                                                            '46px',
+                                                        flexShrink:
+                                                            0,
                                                         display:
                                                             'flex',
                                                         alignItems:
                                                             'center',
-                                                        gap:
-                                                            '7px',
-                                                        marginBottom:
-                                                            '5px',
-                                                        color:
-                                                            '#64748b',
-                                                        fontSize:
-                                                            '12px'
-                                                    }}
-                                                >
-
-                                                    <IndianRupee
-                                                        size={14}
-                                                    />
-
-                                                    Scholarship Amount
-
-                                                </div>
-
-                                                <strong
-                                                    style={{
-                                                        color:
-                                                            '#172033',
-                                                        fontSize:
-                                                            '16px'
-                                                    }}
-                                                >
-                                                    ₹
-                                                    {Number(
-                                                        scholarship.scholarshipAmount ||
-                                                        0
-                                                    ).toLocaleString(
-                                                        'en-IN'
-                                                    )}
-                                                </strong>
-
-                                            </div>
-
-                                            <div
-                                                style={{
-                                                    padding:
-                                                        '12px',
-                                                    borderRadius:
-                                                        '8px',
-                                                    background:
-                                                        '#f8fafc'
-                                                }}
-                                            >
-
-                                                <div
-                                                    style={{
-                                                        display:
-                                                            'flex',
-                                                        alignItems:
+                                                        justifyContent:
                                                             'center',
-                                                        gap:
-                                                            '7px',
-                                                        marginBottom:
-                                                            '5px',
+                                                        borderRadius:
+                                                            '10px',
+                                                        background:
+                                                            '#eaf1fb',
                                                         color:
-                                                            '#64748b',
-                                                        fontSize:
-                                                            '12px'
+                                                            '#174a8b'
                                                     }}
                                                 >
-
-                                                    <CalendarDays
-                                                        size={14}
+                                                    <GraduationCap
+                                                        size={22}
                                                     />
-
-                                                    Academic Year
-
                                                 </div>
 
-                                                <strong
-                                                    style={{
-                                                        color:
-                                                            '#172033',
-                                                        fontSize:
-                                                            '15px'
-                                                    }}
+                                                <span
+                                                    className={
+                                                        deadlinePassed
+                                                            ? 'portal-status portal-status-danger'
+                                                            : 'portal-status portal-status-success'
+                                                    }
                                                 >
                                                     {
-                                                        scholarship.academicYear ||
-                                                        'Not specified'
+                                                        deadlinePassed
+                                                            ? 'Closed'
+                                                            : 'Published'
                                                     }
-                                                </strong>
+                                                </span>
 
                                             </div>
 
-                                        </div>
 
-                                        {/* ============================
-                                            ELIGIBILITY SUMMARY
-                                        ============================= */}
+                                            {/* ============================
+                                                NAME
+                                            ============================= */}
 
-                                        <div
-                                            style={{
-                                                marginBottom:
-                                                    '20px'
-                                            }}
-                                        >
+                                            <h3
+                                                style={{
+                                                    margin:
+                                                        '0 0 9px',
+                                                    color:
+                                                        '#172033',
+                                                    fontSize:
+                                                        '20px',
+                                                    lineHeight:
+                                                        1.35
+                                                }}
+                                            >
+                                                {
+                                                    scholarship.name
+                                                }
+                                            </h3>
+
+
+                                            {/* ============================
+                                                DESCRIPTION
+                                            ============================= */}
+
+                                            <p
+                                                style={{
+                                                    margin:
+                                                        '0 0 20px',
+                                                    color:
+                                                        '#64748b',
+                                                    fontSize:
+                                                        '14px',
+                                                    lineHeight:
+                                                        1.7
+                                                }}
+                                            >
+                                                {
+                                                    scholarship.description ||
+                                                    'No description provided.'
+                                                }
+                                            </p>
+
+
+                                            {/* ============================
+                                                DETAILS
+                                            ============================= */}
+
+                                            <div
+                                                style={{
+                                                    display:
+                                                        'grid',
+                                                    gridTemplateColumns:
+                                                        '1fr 1fr',
+                                                    gap:
+                                                        '12px',
+                                                    marginBottom:
+                                                        '20px'
+                                                }}
+                                            >
+
+                                                <div
+                                                    style={{
+                                                        padding:
+                                                            '12px',
+                                                        borderRadius:
+                                                            '8px',
+                                                        background:
+                                                            '#f8fafc'
+                                                    }}
+                                                >
+
+                                                    <div
+                                                        style={{
+                                                            display:
+                                                                'flex',
+                                                            alignItems:
+                                                                'center',
+                                                            gap:
+                                                                '7px',
+                                                            marginBottom:
+                                                                '5px',
+                                                            color:
+                                                                '#64748b',
+                                                            fontSize:
+                                                                '12px'
+                                                        }}
+                                                    >
+
+                                                        <IndianRupee
+                                                            size={14}
+                                                        />
+
+                                                        Scholarship Amount
+
+                                                    </div>
+
+                                                    <strong
+                                                        style={{
+                                                            color:
+                                                                '#172033',
+                                                            fontSize:
+                                                                '16px'
+                                                        }}
+                                                    >
+                                                        ₹
+                                                        {Number(
+                                                            scholarship.scholarshipAmount ||
+                                                            0
+                                                        ).toLocaleString(
+                                                            'en-IN'
+                                                        )}
+                                                    </strong>
+
+                                                </div>
+
+
+                                                <div
+                                                    style={{
+                                                        padding:
+                                                            '12px',
+                                                        borderRadius:
+                                                            '8px',
+                                                        background:
+                                                            '#f8fafc'
+                                                    }}
+                                                >
+
+                                                    <div
+                                                        style={{
+                                                            display:
+                                                                'flex',
+                                                            alignItems:
+                                                                'center',
+                                                            gap:
+                                                                '7px',
+                                                            marginBottom:
+                                                                '5px',
+                                                            color:
+                                                                '#64748b',
+                                                            fontSize:
+                                                                '12px'
+                                                        }}
+                                                    >
+
+                                                        <CalendarDays
+                                                            size={14}
+                                                        />
+
+                                                        Academic Year
+
+                                                    </div>
+
+                                                    <strong
+                                                        style={{
+                                                            color:
+                                                                '#172033',
+                                                            fontSize:
+                                                                '15px'
+                                                        }}
+                                                    >
+                                                        {
+                                                            scholarship.academicYear ||
+                                                            'Not specified'
+                                                        }
+                                                    </strong>
+
+                                                </div>
+
+                                            </div>
+
+
+                                            {/* ============================
+                                                ELIGIBILITY SUMMARY
+                                            ============================= */}
 
                                             <div
                                                 style={{
                                                     marginBottom:
-                                                        '8px',
-                                                    color:
-                                                        '#334155',
-                                                    fontSize:
-                                                        '13px',
-                                                    fontWeight:
-                                                        700
-                                                }}
-                                            >
-                                                Eligibility
-                                            </div>
-
-                                            <div
-                                                style={{
-                                                    display:
-                                                        'flex',
-                                                    flexWrap:
-                                                        'wrap',
-                                                    gap:
-                                                        '6px'
+                                                        '20px'
                                                 }}
                                             >
 
-                                                {scholarship.minimumPercentage >
-                                                    0 && (
+                                                <div
+                                                    style={{
+                                                        marginBottom:
+                                                            '8px',
+                                                        color:
+                                                            '#334155',
+                                                        fontSize:
+                                                            '13px',
+                                                        fontWeight:
+                                                            700
+                                                    }}
+                                                >
+                                                    Eligibility
+                                                </div>
 
-                                                    <span
-                                                        className="portal-status portal-status-info"
-                                                    >
-                                                        Min.{' '}
-                                                        {
-                                                            scholarship.minimumPercentage
-                                                        }
-                                                        %
-                                                    </span>
+                                                <div
+                                                    style={{
+                                                        display:
+                                                            'flex',
+                                                        flexWrap:
+                                                            'wrap',
+                                                        gap:
+                                                            '6px'
+                                                    }}
+                                                >
 
-                                                )}
+                                                    {Number(
+                                                        scholarship.minimumPercentage
+                                                    ) > 0 && (
 
-                                                {Array.isArray(
-                                                    scholarship.eligibleCategories
-                                                ) &&
+                                                        <span
+                                                            className="portal-status portal-status-info"
+                                                        >
+                                                            Min.{' '}
+                                                            {
+                                                                scholarship.minimumPercentage
+                                                            }
+                                                            %
+                                                        </span>
+
+                                                    )}
+
+
+                                                    {Array.isArray(
+                                                        scholarship.eligibleCategories
+                                                    ) &&
                                                     scholarship
                                                         .eligibleCategories
-                                                        .length >
-                                                        0 && (
+                                                        .length > 0 && (
 
                                                         <span
                                                             className="portal-status portal-status-neutral"
@@ -989,13 +1279,13 @@ const Scholarships = () => {
 
                                                     )}
 
-                                                {Array.isArray(
-                                                    scholarship.eligibleCourses
-                                                ) &&
+
+                                                    {Array.isArray(
+                                                        scholarship.eligibleCourses
+                                                    ) &&
                                                     scholarship
                                                         .eligibleCourses
-                                                        .length >
-                                                        0 && (
+                                                        .length > 0 && (
 
                                                         <span
                                                             className="portal-status portal-status-neutral"
@@ -1011,135 +1301,158 @@ const Scholarships = () => {
 
                                                     )}
 
-                                            </div>
 
-                                        </div>
+                                                    {Array.isArray(
+                                                        scholarship.eligibleDepartments
+                                                    ) &&
+                                                    scholarship
+                                                        .eligibleDepartments
+                                                        .length > 0 && (
 
-                                        {/* ============================
-                                            DEADLINE
-                                        ============================= */}
+                                                        <span
+                                                            className="portal-status portal-status-neutral"
+                                                        >
+                                                            {
+                                                                scholarship
+                                                                    .eligibleDepartments
+                                                                    .join(
+                                                                        ', '
+                                                                    )
+                                                            }
+                                                        </span>
 
-                                        <div
-                                            style={{
-                                                display:
-                                                    'flex',
-                                                alignItems:
-                                                    'center',
-                                                justifyContent:
-                                                    'space-between',
-                                                gap:
-                                                    '10px',
-                                                marginTop:
-                                                    'auto',
-                                                marginBottom:
-                                                    '18px',
-                                                paddingTop:
-                                                    '15px',
-                                                borderTop:
-                                                    '1px solid #e2e8f0'
-                                            }}
-                                        >
-
-                                            <div>
-
-                                                <div
-                                                    style={{
-                                                        display:
-                                                            'flex',
-                                                        alignItems:
-                                                            'center',
-                                                        gap:
-                                                            '6px',
-                                                        color:
-                                                            '#64748b',
-                                                        fontSize:
-                                                            '12px',
-                                                        marginBottom:
-                                                            '4px'
-                                                    }}
-                                                >
-
-                                                    <CalendarDays
-                                                        size={14}
-                                                    />
-
-                                                    Application Deadline
+                                                    )}
 
                                                 </div>
 
-                                                <strong
-                                                    style={{
-                                                        color:
-                                                            '#172033',
-                                                        fontSize:
-                                                            '14px'
-                                                    }}
+                                            </div>
+
+
+                                            {/* ============================
+                                                DEADLINE
+                                            ============================= */}
+
+                                            <div
+                                                style={{
+                                                    display:
+                                                        'flex',
+                                                    alignItems:
+                                                        'center',
+                                                    justifyContent:
+                                                        'space-between',
+                                                    gap:
+                                                        '10px',
+                                                    marginTop:
+                                                        'auto',
+                                                    marginBottom:
+                                                        '18px',
+                                                    paddingTop:
+                                                        '15px',
+                                                    borderTop:
+                                                        '1px solid #e2e8f0'
+                                                }}
+                                            >
+
+                                                <div>
+
+                                                    <div
+                                                        style={{
+                                                            display:
+                                                                'flex',
+                                                            alignItems:
+                                                                'center',
+                                                            gap:
+                                                                '6px',
+                                                            color:
+                                                                '#64748b',
+                                                            fontSize:
+                                                                '12px',
+                                                            marginBottom:
+                                                                '4px'
+                                                        }}
+                                                    >
+
+                                                        <CalendarDays
+                                                            size={14}
+                                                        />
+
+                                                        Application Deadline
+
+                                                    </div>
+
+                                                    <strong
+                                                        style={{
+                                                            color:
+                                                                '#172033',
+                                                            fontSize:
+                                                                '14px'
+                                                        }}
+                                                    >
+                                                        {formatDate(
+                                                            scholarship.applicationEndDate
+                                                        )}
+                                                    </strong>
+
+                                                </div>
+
+
+                                                <span
+                                                    className={
+                                                        deadlinePassed
+                                                            ? 'portal-status portal-status-danger'
+                                                            : 'portal-status portal-status-warning'
+                                                    }
                                                 >
-                                                    {formatDate(
-                                                        scholarship.applicationEndDate
-                                                    )}
-                                                </strong>
+                                                    {
+                                                        getDeadlineStatus(
+                                                            scholarship.applicationEndDate
+                                                        )
+                                                    }
+                                                </span>
 
                                             </div>
 
-                                            <span
-                                                className={
-                                                    scholarship.applicationEndDate &&
-                                                    new Date(
-                                                        scholarship.applicationEndDate
-                                                    ) < new Date()
-                                                        ? 'portal-status portal-status-danger'
-                                                        : 'portal-status portal-status-warning'
-                                                }
-                                            >
-                                                {
-                                                    getDeadlineStatus(
-                                                        scholarship.applicationEndDate
+
+                                            {/* ============================
+                                                VIEW BUTTON
+                                            ============================= */}
+
+                                            <button
+                                                type="button"
+                                                className="portal-button portal-button-primary"
+                                                onClick={() =>
+                                                    openScholarship(
+                                                        scholarship._id
                                                     )
                                                 }
-                                            </span>
+                                                style={{
+                                                    width:
+                                                        '100%',
+                                                    display:
+                                                        'flex',
+                                                    alignItems:
+                                                        'center',
+                                                    justifyContent:
+                                                        'center'
+                                                }}
+                                            >
+
+                                                View Scholarship
+
+                                                <ChevronRight
+                                                    size={17}
+                                                    style={{
+                                                        marginLeft:
+                                                            '7px'
+                                                    }}
+                                                />
+
+                                            </button>
 
                                         </div>
 
-                                        {/* ============================
-                                            VIEW BUTTON
-                                        ============================= */}
-
-                                        <button
-                                            type="button"
-                                            className="portal-button portal-button-primary"
-                                            onClick={() =>
-                                                openScholarship(
-                                                    scholarship._id
-                                                )
-                                            }
-                                            style={{
-                                                width:
-                                                    '100%',
-                                                display:
-                                                    'flex',
-                                                alignItems:
-                                                    'center',
-                                                justifyContent:
-                                                    'center'
-                                            }}
-                                        >
-
-                                            View Scholarship
-
-                                            <ChevronRight
-                                                size={17}
-                                                style={{
-                                                    marginLeft:
-                                                        '7px'
-                                                }}
-                                            />
-
-                                        </button>
-
-                                    </div>
-
-                                )
+                                    );
+                                }
                             )}
 
                         </div>
@@ -1153,5 +1466,6 @@ const Scholarships = () => {
         </div>
     );
 };
+
 
 export default Scholarships;

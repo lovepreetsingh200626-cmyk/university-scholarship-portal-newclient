@@ -15,8 +15,7 @@ import {
     GraduationCap,
     WalletCards,
     Building2,
-    Loader2,
-    ExternalLink
+    Loader2
 } from 'lucide-react';
 
 import {
@@ -62,9 +61,6 @@ const AdminApplicationDetails = () => {
     const [rejectionReason, setRejectionReason] =
         useState('');
 
-    const token =
-        authService.getToken();
-
     /* ========================================================
        FETCH APPLICATION
     ======================================================== */
@@ -81,7 +77,7 @@ const AdminApplicationDetails = () => {
                 authService.logout();
 
                 navigate(
-                    '/login',
+                    '/admin/login',
                     {
                         replace: true
                     }
@@ -117,7 +113,7 @@ const AdminApplicationDetails = () => {
                 authService.logout();
 
                 navigate(
-                    '/login',
+                    '/admin/login',
                     {
                         replace: true
                     }
@@ -142,22 +138,12 @@ const AdminApplicationDetails = () => {
 
     /* ========================================================
        VIEW DOCUMENT
-       SECURE AUTHENTICATED DOCUMENT VIEWING
+       PRODUCTION-SAFE AUTHENTICATED DOCUMENT VIEWER
     ======================================================== */
 
     const handleViewDocument = async (
-        event,
         document
     ) => {
-        /*
-         * Prevent any parent click handler or
-         * accidental navigation from firing.
-         */
-        if (event) {
-            event.preventDefault();
-            event.stopPropagation();
-        }
-
         if (
             !document ||
             !document._id
@@ -169,6 +155,16 @@ const AdminApplicationDetails = () => {
             return;
         }
 
+        /*
+         * Prevent multiple document windows
+         * from being opened for the same click.
+         */
+        if (
+            viewingDocumentId
+        ) {
+            return;
+        }
+
         const currentToken =
             authService.getToken();
 
@@ -176,7 +172,7 @@ const AdminApplicationDetails = () => {
             authService.logout();
 
             navigate(
-                '/login',
+                '/admin/login',
                 {
                     replace: true
                 }
@@ -186,11 +182,10 @@ const AdminApplicationDetails = () => {
         }
 
         /*
-         * Open the browser window immediately
-         * while still inside the user's click event.
+         * Open exactly one temporary window.
          *
-         * This avoids popup blockers after the
-         * asynchronous authenticated request.
+         * We do this immediately inside the click
+         * event so browsers do not block it.
          */
         const documentWindow =
             window.open(
@@ -207,41 +202,40 @@ const AdminApplicationDetails = () => {
         }
 
         /*
-         * Show a temporary loading screen
-         * inside the new document window.
+         * Show a loading page in the new window.
          */
         try {
             documentWindow.document.title =
-                'Loading Document';
+                'Scholarship Document';
 
             documentWindow.document.body.innerHTML = `
                 <div style="
-                    font-family: Arial, sans-serif;
+                    margin: 0;
+                    min-height: 100vh;
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    min-height: 100vh;
-                    margin: 0;
-                    padding: 20px;
-                    box-sizing: border-box;
                     background: #f8fafc;
-                    color: #475569;
+                    font-family: Arial, sans-serif;
+                    color: #334155;
                     text-align: center;
+                    padding: 24px;
+                    box-sizing: border-box;
                 ">
                     <div>
                         <div style="
-                            font-size: 18px;
-                            font-weight: 600;
+                            font-size: 20px;
+                            font-weight: 700;
                             margin-bottom: 8px;
                         ">
-                            Loading document...
+                            Opening document...
                         </div>
 
                         <div style="
                             font-size: 14px;
                             color: #64748b;
                         ">
-                            Please wait while the secure document is opened.
+                            Please wait while the secure document is loaded.
                         </div>
                     </div>
                 </div>
@@ -263,41 +257,76 @@ const AdminApplicationDetails = () => {
             /*
              * IMPORTANT:
              *
-             * Do NOT construct the backend URL manually.
+             * Do NOT build a localhost URL.
              *
-             * API already contains:
-             *
-             * Local:
-             * http://localhost:5000/api
-             *
-             * Vercel:
-             * https://university-scholarship-backend.vercel.app/api
-             *
-             * Therefore this same code works in
-             * both environments.
+             * API already knows whether the application
+             * is running locally or on Vercel through
+             * VITE_API_URL.
              */
             const response =
                 await API.get(
-                    `/applications/${id}/documents/${document._id}`,
+                    `/applications/${encodeURIComponent(
+                        id
+                    )}/documents/${encodeURIComponent(
+                        document._id
+                    )}`,
                     {
                         headers: {
                             Authorization:
                                 `Bearer ${currentToken}`
                         },
-
                         responseType:
-                            'blob',
-
-                        validateStatus:
-                            (status) =>
-                                status >= 200 &&
-                                status < 300
+                            'blob'
                     }
                 );
 
+            /*
+             * Axios may still return a Blob even when
+             * the backend sends an error response.
+             *
+             * Check the content type before displaying it.
+             */
+            const responseContentType =
+                response.headers[
+                    'content-type'
+                ] || '';
+
             if (
-                !response ||
-                !response.data
+                responseContentType.includes(
+                    'application/json'
+                )
+            ) {
+                let serverMessage =
+                    'Unable to open the document.';
+
+                try {
+                    const text =
+                        await response.data.text();
+
+                    const parsed =
+                        JSON.parse(text);
+
+                    serverMessage =
+                        parsed.message ||
+                        serverMessage;
+
+                } catch (
+                    parseError
+                ) {
+                    console.error(
+                        'Unable to parse document error response:',
+                        parseError
+                    );
+                }
+
+                throw new Error(
+                    serverMessage
+                );
+            }
+
+            if (
+                !response.data ||
+                response.data.size === 0
             ) {
                 throw new Error(
                     'The server returned an empty document.'
@@ -305,78 +334,66 @@ const AdminApplicationDetails = () => {
             }
 
             /*
-             * Read the response content type.
+             * Only allow the document types that
+             * the backend supports.
              */
-            const contentType =
-                response.headers?.[
-                    'content-type'
-                ] ||
-                document.contentType ||
-                'application/octet-stream';
+            const allowedContentTypes = [
+                'application/pdf',
+                'image/jpeg',
+                'image/png'
+            ];
 
-            /*
-             * If the backend accidentally returns
-             * JSON/HTML instead of the document,
-             * do not try to open it as a PDF/image.
-             */
+            let contentType =
+                responseContentType
+                    .split(';')[0]
+                    .trim()
+                    .toLowerCase();
+
             if (
-                contentType.includes(
-                    'text/html'
+                !allowedContentTypes.includes(
+                    contentType
                 )
             ) {
-                throw new Error(
-                    'The document service returned an invalid response.'
-                );
+                /*
+                 * Some environments may omit the
+                 * response content type.
+                 *
+                 * In that case use the type stored
+                 * with the document.
+                 */
+                contentType =
+                    document.contentType ||
+                    'application/octet-stream';
             }
 
-            /*
-             * Axios with responseType:'blob'
-             * already gives us a Blob in browsers.
-             *
-             * Create a new Blob to guarantee the
-             * correct content type.
-             */
-            const documentBlob =
-                response.data instanceof Blob
-                    ? new Blob(
-                          [
-                              response.data
-                          ],
-                          {
-                              type:
-                                  contentType
-                          }
-                      )
-                    : new Blob(
-                          [
-                              response.data
-                          ],
-                          {
-                              type:
-                                  contentType
-                          }
-                      );
+            const blob =
+                new Blob(
+                    [
+                        response.data
+                    ],
+                    {
+                        type:
+                            contentType
+                    }
+                );
 
-            /*
-             * Create a temporary browser URL.
-             */
             const documentUrl =
                 window.URL.createObjectURL(
-                    documentBlob
+                    blob
                 );
 
             /*
-             * Send the already-opened tab
-             * to the authenticated document.
+             * Navigate the SAME temporary window.
+             *
+             * No second window is created.
              */
             documentWindow.location.replace(
                 documentUrl
             );
 
             /*
-             * Release the temporary object URL
-             * after the browser has had enough time
-             * to load it.
+             * Keep the URL alive for the document
+             * viewer. Revoke it later.
              */
             window.setTimeout(
                 () => {
@@ -384,7 +401,7 @@ const AdminApplicationDetails = () => {
                         documentUrl
                     );
                 },
-                60000
+                5 * 60 * 1000
             );
 
         } catch (error) {
@@ -394,8 +411,8 @@ const AdminApplicationDetails = () => {
             );
 
             /*
-             * Close the temporary tab only
-             * when opening the document failed.
+             * Close only the temporary window
+             * created by this click.
              */
             try {
                 if (
@@ -404,23 +421,22 @@ const AdminApplicationDetails = () => {
                 ) {
                     documentWindow.close();
                 }
-            } catch (closeError) {
+            } catch (
+                closeError
+            ) {
                 console.error(
                     'Unable to close document window:',
                     closeError
                 );
             }
 
-            /*
-             * Authentication expired.
-             */
             if (
                 error.response?.status === 401
             ) {
                 authService.logout();
 
                 navigate(
-                    '/login',
+                    '/admin/login',
                     {
                         replace: true
                     }
@@ -429,10 +445,6 @@ const AdminApplicationDetails = () => {
                 return;
             }
 
-            /*
-             * Admin is not authorized to view
-             * this document.
-             */
             if (
                 error.response?.status === 403
             ) {
@@ -443,9 +455,6 @@ const AdminApplicationDetails = () => {
                 return;
             }
 
-            /*
-             * Document does not exist.
-             */
             if (
                 error.response?.status === 404
             ) {
@@ -456,15 +465,21 @@ const AdminApplicationDetails = () => {
                 return;
             }
 
-            /*
-             * Network error.
-             */
             if (
-                error.message ===
-                'Network Error'
+                error.response?.status === 410
             ) {
                 setError(
-                    'Unable to connect to the document service. Please check the backend connection and try again.'
+                    'This document belongs to an older storage system and is no longer available.'
+                );
+
+                return;
+            }
+
+            if (
+                error.response?.status === 502
+            ) {
+                setError(
+                    'The secure document storage service could not be reached. Please try again.'
                 );
 
                 return;
@@ -472,6 +487,7 @@ const AdminApplicationDetails = () => {
 
             setError(
                 error.message ||
+                error.response?.data?.message ||
                 'Unable to open the document. Please try again.'
             );
 
@@ -486,7 +502,9 @@ const AdminApplicationDetails = () => {
        STATUS HELPERS
     ======================================================== */
 
-    const getStatusClass = (status) => {
+    const getStatusClass = (
+        status
+    ) => {
         switch (status) {
             case 'SUBMITTED':
                 return 'portal-status-info';
@@ -501,11 +519,7 @@ const AdminApplicationDetails = () => {
                 return 'portal-status-info';
 
             case 'VERIFIED':
-                return 'portal-status-success';
-
             case 'SANCTIONED':
-                return 'portal-status-success';
-
             case 'DISBURSED':
                 return 'portal-status-success';
 
@@ -520,7 +534,9 @@ const AdminApplicationDetails = () => {
         }
     };
 
-    const getStatusIcon = (status) => {
+    const getStatusIcon = (
+        status
+    ) => {
         switch (status) {
             case 'VERIFIED':
             case 'SANCTIONED':
@@ -575,7 +591,7 @@ const AdminApplicationDetails = () => {
                 authService.logout();
 
                 navigate(
-                    '/login',
+                    '/admin/login',
                     {
                         replace: true
                     }
@@ -619,7 +635,7 @@ const AdminApplicationDetails = () => {
                 authService.logout();
 
                 navigate(
-                    '/login',
+                    '/admin/login',
                     {
                         replace: true
                     }
@@ -642,35 +658,37 @@ const AdminApplicationDetails = () => {
        START VERIFICATION
     ======================================================== */
 
-    const handleStartVerification = () => {
-        performAction(
-            'start-verification'
-        );
-    };
+    const handleStartVerification =
+        () => {
+            performAction(
+                'start-verification'
+            );
+        };
 
     /* ========================================================
        REQUEST CORRECTION
     ======================================================== */
 
-    const handleRequestCorrection = () => {
-        if (
-            !correctionRemarks.trim()
-        ) {
-            setError(
-                'Please enter correction remarks before requesting correction.'
-            );
+    const handleRequestCorrection =
+        () => {
+            if (
+                !correctionRemarks.trim()
+            ) {
+                setError(
+                    'Please enter correction remarks before requesting correction.'
+                );
 
-            return;
-        }
-
-        performAction(
-            'request-correction',
-            {
-                correctionRemarks:
-                    correctionRemarks.trim()
+                return;
             }
-        );
-    };
+
+            performAction(
+                'request-correction',
+                {
+                    correctionRemarks:
+                        correctionRemarks.trim()
+                }
+            );
+        };
 
     /* ========================================================
        VERIFY APPLICATION
@@ -727,17 +745,24 @@ const AdminApplicationDetails = () => {
         return (
             <div
                 style={{
-                    minHeight: '100vh',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    background: '#f5f7fb'
+                    minHeight:
+                        '100vh',
+                    display:
+                        'flex',
+                    alignItems:
+                        'center',
+                    justifyContent:
+                        'center',
+                    background:
+                        '#f5f7fb'
                 }}
             >
                 <div
                     style={{
-                        textAlign: 'center',
-                        color: '#64748b'
+                        textAlign:
+                            'center',
+                        color:
+                            '#64748b'
                     }}
                 >
                     <Loader2
@@ -752,7 +777,8 @@ const AdminApplicationDetails = () => {
 
                     <div
                         style={{
-                            fontWeight: 600
+                            fontWeight:
+                                600
                         }}
                     >
                         Loading application...
@@ -787,22 +813,28 @@ const AdminApplicationDetails = () => {
         return (
             <div
                 style={{
-                    minHeight: '100vh',
-                    background: '#f5f7fb',
-                    padding: '40px 20px'
+                    minHeight:
+                        '100vh',
+                    background:
+                        '#f5f7fb',
+                    padding:
+                        '40px 20px'
                 }}
             >
                 <div
                     className="portal-container"
                     style={{
-                        maxWidth: '900px'
+                        maxWidth:
+                            '900px'
                     }}
                 >
                     <div
                         className="portal-card"
                         style={{
-                            padding: '32px',
-                            textAlign: 'center'
+                            padding:
+                                '32px',
+                            textAlign:
+                                'center'
                         }}
                     >
                         <AlertCircle
@@ -817,7 +849,8 @@ const AdminApplicationDetails = () => {
                         <h2
                             className="portal-heading"
                             style={{
-                                fontSize: '26px',
+                                fontSize:
+                                    '26px',
                                 marginBottom:
                                     '10px'
                             }}
@@ -836,7 +869,6 @@ const AdminApplicationDetails = () => {
                         </p>
 
                         <button
-                            type="button"
                             className="portal-button portal-button-secondary"
                             onClick={() =>
                                 navigate(
@@ -914,21 +946,24 @@ const AdminApplicationDetails = () => {
     return (
         <div
             style={{
-                minHeight: '100vh',
-                background: '#f5f7fb',
-                paddingBottom: '50px'
+                minHeight:
+                    '100vh',
+                background:
+                    '#f5f7fb',
+                paddingBottom:
+                    '50px'
             }}
         >
-            {/* =================================================
-                HEADER
-            ================================================= */}
+            {/* HEADER */}
 
             <header
                 style={{
-                    background: '#ffffff',
+                    background:
+                        '#ffffff',
                     borderBottom:
                         '1px solid #e2e8f0',
-                    position: 'sticky',
+                    position:
+                        'sticky',
                     top: 0,
                     zIndex: 20
                 }}
@@ -936,35 +971,48 @@ const AdminApplicationDetails = () => {
                 <div
                     className="portal-container"
                     style={{
-                        maxWidth: '1280px',
-                        minHeight: '76px',
-                        display: 'flex',
-                        alignItems: 'center',
+                        maxWidth:
+                            '1280px',
+                        minHeight:
+                            '76px',
+                        display:
+                            'flex',
+                        alignItems:
+                            'center',
                         justifyContent:
                             'space-between',
-                        gap: '18px'
+                        gap:
+                            '18px'
                     }}
                 >
                     <div
                         style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '14px'
+                            display:
+                                'flex',
+                            alignItems:
+                                'center',
+                            gap:
+                                '14px'
                         }}
                     >
                         <div
                             style={{
-                                width: '44px',
-                                height: '44px',
-                                borderRadius: '10px',
+                                width:
+                                    '44px',
+                                height:
+                                    '44px',
+                                borderRadius:
+                                    '10px',
                                 background:
                                     '#174a8b',
-                                display: 'flex',
+                                display:
+                                    'flex',
                                 alignItems:
                                     'center',
                                 justifyContent:
                                     'center',
-                                color: '#ffffff'
+                                color:
+                                    '#ffffff'
                             }}
                         >
                             <ShieldCheck
@@ -977,8 +1025,10 @@ const AdminApplicationDetails = () => {
                                 style={{
                                     fontFamily:
                                         "'Playfair Display', Georgia, serif",
-                                    fontSize: '20px',
-                                    fontWeight: 700,
+                                    fontSize:
+                                        '20px',
+                                    fontWeight:
+                                        700,
                                     color:
                                         '#172033'
                                 }}
@@ -1000,7 +1050,6 @@ const AdminApplicationDetails = () => {
                     </div>
 
                     <button
-                        type="button"
                         className="portal-button portal-button-secondary"
                         onClick={() =>
                             navigate(
@@ -1025,27 +1074,30 @@ const AdminApplicationDetails = () => {
             <main
                 className="portal-container"
                 style={{
-                    maxWidth: '1280px',
-                    paddingTop: '28px'
+                    maxWidth:
+                        '1280px',
+                    paddingTop:
+                        '28px'
                 }}
             >
-                {/* =================================================
-                    PAGE TITLE
-                ================================================= */}
+                {/* PAGE TITLE */}
 
                 <div
                     style={{
-                        marginBottom: '24px'
+                        marginBottom:
+                            '24px'
                     }}
                 >
                     <div
                         style={{
-                            display: 'flex',
+                            display:
+                                'flex',
                             justifyContent:
                                 'space-between',
                             alignItems:
                                 'flex-start',
-                            gap: '20px',
+                            gap:
+                                '20px',
                             flexWrap:
                                 'wrap'
                         }}
@@ -1085,7 +1137,8 @@ const AdminApplicationDetails = () => {
                             <p
                                 className="portal-text"
                                 style={{
-                                    margin: 0
+                                    margin:
+                                        0
                                 }}
                             >
                                 Review the student's submitted
@@ -1120,9 +1173,7 @@ const AdminApplicationDetails = () => {
                     </div>
                 </div>
 
-                {/* =================================================
-                    MESSAGES
-                ================================================= */}
+                {/* MESSAGES */}
 
                 {successMessage && (
                     <div
@@ -1139,10 +1190,12 @@ const AdminApplicationDetails = () => {
                                 '13px 16px',
                             marginBottom:
                                 '18px',
-                            display: 'flex',
+                            display:
+                                'flex',
                             alignItems:
                                 'center',
-                            gap: '9px',
+                            gap:
+                                '9px',
                             fontWeight:
                                 600
                         }}
@@ -1170,10 +1223,12 @@ const AdminApplicationDetails = () => {
                                 '13px 16px',
                             marginBottom:
                                 '18px',
-                            display: 'flex',
+                            display:
+                                'flex',
                             alignItems:
                                 'center',
-                            gap: '9px',
+                            gap:
+                                '9px',
                             fontWeight:
                                 600
                         }}
@@ -1186,24 +1241,25 @@ const AdminApplicationDetails = () => {
                     </div>
                 )}
 
-                {/* =================================================
-                    APPLICATION IDENTIFICATION
-                ================================================= */}
+                {/* APPLICATION IDENTIFICATION */}
 
                 <div
                     className="portal-card"
                     style={{
-                        padding: '22px',
+                        padding:
+                            '22px',
                         marginBottom:
                             '18px'
                     }}
                 >
                     <div
                         style={{
-                            display: 'grid',
+                            display:
+                                'grid',
                             gridTemplateColumns:
                                 'repeat(auto-fit, minmax(220px, 1fr))',
-                            gap: '20px'
+                            gap:
+                                '20px'
                         }}
                     >
                         <InfoItem
@@ -1245,24 +1301,22 @@ const AdminApplicationDetails = () => {
                     </div>
                 </div>
 
-                {/* =================================================
-                    TWO COLUMN CONTENT
-                ================================================= */}
+                {/* TWO COLUMN CONTENT */}
 
                 <div
                     style={{
-                        display: 'grid',
+                        display:
+                            'grid',
                         gridTemplateColumns:
                             'minmax(0, 1.35fr) minmax(320px, 0.65fr)',
-                        gap: '18px',
+                        gap:
+                            '18px',
                         alignItems:
                             'start'
                     }}
                 >
                     <div>
-                        {/* =========================================
-                            APPLICANT DETAILS
-                        ========================================= */}
+                        {/* APPLICANT */}
 
                         <SectionCard
                             icon={
@@ -1289,6 +1343,20 @@ const AdminApplicationDetails = () => {
                                         'Not provided'
                                     }
                                 />
+
+                                {[
+                                    ['Student ID', applicant.studentId || student.studentId],
+                                    ['Application Type', applicant.applicationType],
+                                    ["Father's Name", applicant.fatherName],
+                                    ["Mother's Name", applicant.motherName],
+                                    ['Religion', applicant.religion],
+                                    ['Special Category', applicant.specialCategory],
+                                    ['Aadhaar (masked)', applicant.aadhaarNumber],
+                                    ['De-Notified Tribes', applicant.deNotifiedTribes],
+                                    ['Tribes', applicant.tribes]
+                                ].map(([label, value]) => (
+                                    <InfoItem key={label} label={label} value={value || 'Not provided'} />
+                                ))}
 
                                 <InfoItem
                                     label="Email"
@@ -1353,9 +1421,7 @@ const AdminApplicationDetails = () => {
                             </DetailGrid>
                         </SectionCard>
 
-                        {/* =========================================
-                            ACADEMIC DETAILS
-                        ========================================= */}
+                        {/* ACADEMIC */}
 
                         <SectionCard
                             icon={
@@ -1417,12 +1483,39 @@ const AdminApplicationDetails = () => {
                                             : 'Not provided'
                                     }
                                 />
+
+                                {[
+                                    ['Institute', applicant.institute],
+                                    ['Tehsil', applicant.tehsil],
+                                    ['Hosteller', applicant.hosteller],
+                                    ['10th Class Board', applicant.class10Board],
+                                    ['10th Class Session', applicant.class10Session],
+                                    ['10th Class Roll Number', applicant.class10RollNumber],
+                                    ['Enrollment', applicant.enrollment],
+                                    ['Admission Date', applicant.admissionDate ? new Date(applicant.admissionDate).toLocaleDateString() : ''],
+                                    ['Attendance', applicant.attendance !== null && applicant.attendance !== undefined ? `${applicant.attendance}%` : ''],
+                                    ['Admit Card', applicant.admitCard],
+                                    ['Examination Year', applicant.examinationYear],
+                                    ['Promoted', applicant.promoted]
+                                ].map(([label, value]) => (
+                                    <InfoItem key={label} label={label} value={value || 'Not provided'} />
+                                ))}
                             </DetailGrid>
                         </SectionCard>
 
-                        {/* =========================================
-                            FINANCIAL DETAILS
-                        ========================================= */}
+                        <SectionCard
+                            icon={<FileText size={20} />}
+                            title="Contact Information"
+                        >
+                            <DetailGrid>
+                                <InfoItem label="Correspondence Address" value={applicant.correspondenceAddress || 'Not provided'} fullWidth />
+                                <InfoItem label="Permanent Address" value={applicant.permanentAddress || 'Not provided'} fullWidth />
+                                <InfoItem label="Contact Numbers" value={applicant.contactNumbers || applicant.mobile || 'Not provided'} />
+                                <InfoItem label="Email Address" value={applicant.emailAddress || student.email || 'Not provided'} />
+                            </DetailGrid>
+                        </SectionCard>
+
+                        {/* FINANCIAL */}
 
                         <SectionCard
                             icon={
@@ -1451,9 +1544,7 @@ const AdminApplicationDetails = () => {
                             </DetailGrid>
                         </SectionCard>
 
-                        {/* =========================================
-                            BANK DETAILS
-                        ========================================= */}
+                        {/* BANK */}
 
                         <SectionCard
                             icon={
@@ -1487,12 +1578,24 @@ const AdminApplicationDetails = () => {
                                         'Not provided'
                                     }
                                 />
+
+                                <InfoItem label="Bank Address" value={applicant.bankAddress || 'Not provided'} fullWidth />
+                                <InfoItem label="Bank Branch Name" value={applicant.bankBranchName || 'Not provided'} />
                             </DetailGrid>
                         </SectionCard>
 
-                        {/* =========================================
-                            DOCUMENTS
-                        ========================================= */}
+                        <SectionCard
+                            icon={<ShieldCheck size={20} />}
+                            title="Declaration"
+                        >
+                            <InfoItem
+                                label="Student Declaration"
+                                value={applicant.declarationAccepted ? 'Accepted' : 'Not accepted'}
+                                fullWidth
+                            />
+                        </SectionCard>
+
+                        {/* DOCUMENTS */}
 
                         <SectionCard
                             icon={
@@ -1503,7 +1606,7 @@ const AdminApplicationDetails = () => {
                             title="Supporting Documents"
                         >
                             {requiredDocuments.length >
-                            0 && (
+                                0 && (
                                 <div
                                     style={{
                                         marginBottom:
@@ -1535,163 +1638,169 @@ const AdminApplicationDetails = () => {
                                         (
                                             document,
                                             index
-                                        ) => (
-                                            <div
-                                                key={
-                                                    `${document.documentType}-${document._id || index}`
-                                                }
-                                                style={{
-                                                    border:
-                                                        '1px solid #e2e8f0',
-                                                    borderRadius:
-                                                        '10px',
-                                                    padding:
-                                                        '14px',
-                                                    display:
-                                                        'flex',
-                                                    alignItems:
-                                                        'center',
-                                                    justifyContent:
-                                                        'space-between',
-                                                    gap:
-                                                        '12px',
-                                                    flexWrap:
-                                                        'wrap'
-                                                }}
-                                            >
+                                        ) => {
+                                            const documentId =
+                                                document._id ||
+                                                `${document.documentType}-${index}`;
+
+                                            const isViewing =
+                                                viewingDocumentId ===
+                                                documentId;
+
+                                            return (
                                                 <div
+                                                    key={
+                                                        documentId
+                                                    }
                                                     style={{
+                                                        border:
+                                                            '1px solid #e2e8f0',
+                                                        borderRadius:
+                                                            '10px',
+                                                        padding:
+                                                            '14px',
                                                         display:
                                                             'flex',
                                                         alignItems:
                                                             'center',
+                                                        justifyContent:
+                                                            'space-between',
                                                         gap:
-                                                            '11px'
+                                                            '12px',
+                                                        flexWrap:
+                                                            'wrap'
                                                     }}
                                                 >
                                                     <div
                                                         style={{
-                                                            width:
-                                                                '38px',
-                                                            height:
-                                                                '38px',
-                                                            borderRadius:
-                                                                '8px',
-                                                            background:
-                                                                '#eaf1fb',
-                                                            color:
-                                                                '#174a8b',
                                                             display:
                                                                 'flex',
                                                             alignItems:
                                                                 'center',
-                                                            justifyContent:
-                                                                'center'
+                                                            gap:
+                                                                '11px'
                                                         }}
                                                     >
-                                                        <FileText
-                                                            size={
-                                                                19
-                                                            }
-                                                        />
-                                                    </div>
-
-                                                    <div>
                                                         <div
                                                             style={{
-                                                                fontWeight:
-                                                                    700,
+                                                                width:
+                                                                    '38px',
+                                                                height:
+                                                                    '38px',
+                                                                borderRadius:
+                                                                    '8px',
+                                                                background:
+                                                                    '#eaf1fb',
                                                                 color:
-                                                                    '#172033'
+                                                                    '#174a8b',
+                                                                display:
+                                                                    'flex',
+                                                                alignItems:
+                                                                    'center',
+                                                                justifyContent:
+                                                                    'center'
                                                             }}
                                                         >
-                                                            {
-                                                                document.documentType
-                                                            }
-                                                        </div>
-
-                                                        <div
-                                                            style={{
-                                                                fontSize:
-                                                                    '13px',
-                                                                color:
-                                                                    '#64748b',
-                                                                marginTop:
-                                                                    '3px'
-                                                            }}
-                                                        >
-                                                            {
-                                                                document.fileName
-                                                            }
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                <button
-                                                    type="button"
-                                                    onClick={(
-                                                        event
-                                                    ) =>
-                                                        handleViewDocument(
-                                                            event,
-                                                            document
-                                                        )
-                                                    }
-                                                    disabled={
-                                                        viewingDocumentId ===
-                                                        document._id
-                                                    }
-                                                    className="portal-button portal-button-secondary"
-                                                    style={{
-                                                        display:
-                                                            'inline-flex',
-                                                        alignItems:
-                                                            'center',
-                                                        justifyContent:
-                                                            'center',
-                                                        gap:
-                                                            '7px',
-                                                        cursor:
-                                                            viewingDocumentId ===
-                                                            document._id
-                                                                ? 'wait'
-                                                                : 'pointer',
-                                                        opacity:
-                                                            viewingDocumentId ===
-                                                            document._id
-                                                                ? 0.65
-                                                                : 1
-                                                    }}
-                                                >
-                                                    {viewingDocumentId ===
-                                                    document._id ? (
-                                                        <>
-                                                            <Loader2
+                                                            <FileText
                                                                 size={
-                                                                    16
+                                                                    19
                                                                 }
+                                                            />
+                                                        </div>
+
+                                                        <div>
+                                                            <div
                                                                 style={{
-                                                                    animation:
-                                                                        'adminApplicationSpin 1s linear infinite'
+                                                                    fontWeight:
+                                                                        700,
+                                                                    color:
+                                                                        '#172033'
                                                                 }}
-                                                            />
-
-                                                            Opening...
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <ExternalLink
-                                                                size={
-                                                                    16
+                                                            >
+                                                                {
+                                                                    document.documentType
                                                                 }
-                                                            />
+                                                            </div>
 
-                                                            View Document
-                                                        </>
-                                                    )}
-                                                </button>
-                                            </div>
-                                        )
+                                                            <div
+                                                                style={{
+                                                                    fontSize:
+                                                                        '13px',
+                                                                    color:
+                                                                        '#64748b',
+                                                                    marginTop:
+                                                                        '3px'
+                                                                }}
+                                                            >
+                                                                {
+                                                                    document.fileName
+                                                                }
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            handleViewDocument(
+                                                                document
+                                                            )
+                                                        }
+                                                        disabled={
+                                                            viewingDocumentId !==
+                                                                null
+                                                        }
+                                                        className="portal-button portal-button-secondary"
+                                                        style={{
+                                                            display:
+                                                                'inline-flex',
+                                                            alignItems:
+                                                                'center',
+                                                            justifyContent:
+                                                                'center',
+                                                            gap:
+                                                                '7px',
+                                                            cursor:
+                                                                viewingDocumentId !==
+                                                                null
+                                                                    ? 'wait'
+                                                                    : 'pointer',
+                                                            opacity:
+                                                                viewingDocumentId !==
+                                                                null
+                                                                    ? 0.65
+                                                                    : 1
+                                                        }}
+                                                    >
+                                                        {isViewing ? (
+                                                            <>
+                                                                <Loader2
+                                                                    size={
+                                                                        16
+                                                                    }
+                                                                    style={{
+                                                                        animation:
+                                                                            'adminApplicationSpin 1s linear infinite'
+                                                                    }}
+                                                                />
+
+                                                                Opening...
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <FileText
+                                                                    size={
+                                                                        16
+                                                                    }
+                                                                />
+
+                                                                View Document
+                                                            </>
+                                                        )}
+                                                    </button>
+                                                </div>
+                                            );
+                                        }
                                     )
                                 ) : (
                                     <div
@@ -1715,14 +1824,10 @@ const AdminApplicationDetails = () => {
                         </SectionCard>
                     </div>
 
-                    {/* =================================================
-                        RIGHT SIDEBAR
-                    ================================================= */}
+                    {/* RIGHT SIDEBAR */}
 
                     <aside>
-                        {/* =========================================
-                            SCHOLARSHIP DETAILS
-                        ========================================= */}
+                        {/* SCHOLARSHIP */}
 
                         <SectionCard
                             icon={
@@ -1830,9 +1935,7 @@ const AdminApplicationDetails = () => {
                             </div>
                         </SectionCard>
 
-                        {/* =========================================
-                            CORRECTION REMARKS
-                        ========================================= */}
+                        {/* CORRECTION */}
 
                         {application.correctionRemarks && (
                             <SectionCard
@@ -1868,9 +1971,7 @@ const AdminApplicationDetails = () => {
                             </SectionCard>
                         )}
 
-                        {/* =========================================
-                            VERIFICATION REMARKS
-                        ========================================= */}
+                        {/* VERIFICATION */}
 
                         {application.verificationRemarks && (
                             <SectionCard
@@ -1906,9 +2007,7 @@ const AdminApplicationDetails = () => {
                             </SectionCard>
                         )}
 
-                        {/* =========================================
-                            REJECTION REASON
-                        ========================================= */}
+                        {/* REJECTION */}
 
                         {application.rejectionReason && (
                             <SectionCard
@@ -1944,9 +2043,7 @@ const AdminApplicationDetails = () => {
                             </SectionCard>
                         )}
 
-                        {/* =========================================
-                            ADMIN ACTIONS
-                        ========================================= */}
+                        {/* ADMIN ACTIONS */}
 
                         {(canStartVerification ||
                             canReview ||
@@ -1962,7 +2059,6 @@ const AdminApplicationDetails = () => {
                             >
                                 {canStartVerification && (
                                     <button
-                                        type="button"
                                         className="portal-button portal-button-primary"
                                         onClick={
                                             handleStartVerification
@@ -2044,7 +2140,6 @@ const AdminApplicationDetails = () => {
                                         </div>
 
                                         <button
-                                            type="button"
                                             className="portal-button portal-button-secondary"
                                             onClick={
                                                 handleRequestCorrection
@@ -2110,7 +2205,6 @@ const AdminApplicationDetails = () => {
                                         </div>
 
                                         <button
-                                            type="button"
                                             className="portal-button portal-button-primary"
                                             onClick={
                                                 handleVerify
@@ -2172,7 +2266,6 @@ const AdminApplicationDetails = () => {
                                         </div>
 
                                         <button
-                                            type="button"
                                             className="portal-button portal-button-danger"
                                             onClick={
                                                 handleReject
@@ -2207,7 +2300,6 @@ const AdminApplicationDetails = () => {
 
                                 {canSanction && (
                                     <button
-                                        type="button"
                                         className="portal-button portal-button-primary"
                                         onClick={() =>
                                             performAction(
@@ -2243,7 +2335,6 @@ const AdminApplicationDetails = () => {
 
                                 {canDisburse && (
                                     <button
-                                        type="button"
                                         className="portal-button portal-button-primary"
                                         onClick={() =>
                                             performAction(
@@ -2279,9 +2370,7 @@ const AdminApplicationDetails = () => {
                             </SectionCard>
                         )}
 
-                        {/* =========================================
-                            SYSTEM INFORMATION
-                        ========================================= */}
+                        {/* TIMELINE */}
 
                         <SectionCard
                             icon={
@@ -2372,30 +2461,42 @@ const SectionCard = ({
         <div
             className="portal-card"
             style={{
-                padding: '20px',
-                marginBottom: '18px'
+                padding:
+                    '20px',
+                marginBottom:
+                    '18px'
             }}
         >
             <div
                 style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '9px',
-                    marginBottom: '18px',
-                    paddingBottom: '13px',
+                    display:
+                        'flex',
+                    alignItems:
+                        'center',
+                    gap:
+                        '9px',
+                    marginBottom:
+                        '18px',
+                    paddingBottom:
+                        '13px',
                     borderBottom:
                         '1px solid #e2e8f0',
-                    color: '#174a8b'
+                    color:
+                        '#174a8b'
                 }}
             >
                 {icon}
 
                 <h2
                     style={{
-                        margin: 0,
-                        fontSize: '17px',
-                        fontWeight: 700,
-                        color: '#172033'
+                        margin:
+                            0,
+                        fontSize:
+                            '17px',
+                        fontWeight:
+                            700,
+                        color:
+                            '#172033'
                     }}
                 >
                     {title}
@@ -2417,10 +2518,12 @@ const DetailGrid = ({
     return (
         <div
             style={{
-                display: 'grid',
+                display:
+                    'grid',
                 gridTemplateColumns:
                     'repeat(auto-fit, minmax(190px, 1fr))',
-                gap: '18px'
+                gap:
+                    '18px'
             }}
         >
             {children}
@@ -2448,10 +2551,14 @@ const InfoItem = ({
         >
             <div
                 style={{
-                    fontSize: '12px',
-                    color: '#64748b',
-                    fontWeight: 600,
-                    marginBottom: '5px',
+                    fontSize:
+                        '12px',
+                    color:
+                        '#64748b',
+                    fontWeight:
+                        600,
+                    marginBottom:
+                        '5px',
                     textTransform:
                         'uppercase',
                     letterSpacing:
@@ -2463,9 +2570,12 @@ const InfoItem = ({
 
             <div
                 style={{
-                    color: '#172033',
-                    fontWeight: 600,
-                    lineHeight: 1.5,
+                    color:
+                        '#172033',
+                    fontWeight:
+                        600,
+                    lineHeight:
+                        1.5,
                     wordBreak:
                         'break-word'
                 }}
@@ -2487,10 +2597,12 @@ const TimelineItem = ({
     return (
         <div
             style={{
-                display: 'flex',
+                display:
+                    'flex',
                 justifyContent:
                     'space-between',
-                gap: '12px',
+                gap:
+                    '12px',
                 padding:
                     '10px 0',
                 borderBottom:
@@ -2499,9 +2611,12 @@ const TimelineItem = ({
         >
             <span
                 style={{
-                    color: '#475569',
-                    fontWeight: 600,
-                    fontSize: '14px'
+                    color:
+                        '#475569',
+                    fontWeight:
+                        600,
+                    fontSize:
+                        '14px'
                 }}
             >
                 {label}
@@ -2509,8 +2624,10 @@ const TimelineItem = ({
 
             <span
                 style={{
-                    color: '#64748b',
-                    fontSize: '13px',
+                    color:
+                        '#64748b',
+                    fontSize:
+                        '13px',
                     textAlign:
                         'right'
                 }}

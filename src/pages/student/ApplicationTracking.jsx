@@ -13,6 +13,7 @@ import {
     CheckCircle2,
     Clock3,
     FileText,
+    Download,
     AlertCircle,
     ShieldCheck,
     Banknote,
@@ -54,6 +55,8 @@ const ApplicationTracking = () => {
         setError
     ] = useState('');
 
+    const [downloadingPdf, setDownloadingPdf] = useState(false);
+
 
     /* ============================================================
        AUTH
@@ -73,6 +76,28 @@ const ApplicationTracking = () => {
                 `Bearer ${token}`
         }
     });
+
+    const downloadApplicationPdf = async () => {
+        try {
+            setDownloadingPdf(true);
+            const response = await API.get(`/applications/${id}/pdf`, {
+                ...getAuthConfig(),
+                responseType: 'blob'
+            });
+            const objectUrl = URL.createObjectURL(response.data);
+            const anchor = document.createElement('a');
+            anchor.href = objectUrl;
+            anchor.download = `${application?.applicationNumber || 'scholarship-application'}.pdf`;
+            document.body.appendChild(anchor);
+            anchor.click();
+            anchor.remove();
+            window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+        } catch (requestError) {
+            setError(requestError.response?.data?.message || 'Unable to download the application PDF.');
+        } finally {
+            setDownloadingPdf(false);
+        }
+    };
 
 
     /* ============================================================
@@ -714,29 +739,22 @@ const ApplicationTracking = () => {
                     </div>
 
 
-                    <button
-                        type="button"
-                        className="portal-button portal-button-secondary"
-                        onClick={() =>
-                            navigate(
-                                '/student/applications'
-                            )
-                        }
-                    >
-
-                        <ArrowLeft
-                            size={16}
-                            style={{
-                                marginRight:
-                                    '7px',
-                                verticalAlign:
-                                    'middle'
-                            }}
-                        />
-
-                        My Applications
-
-                    </button>
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                        {application && (
+                            <button type="button" className="portal-button portal-button-secondary" onClick={downloadApplicationPdf} disabled={downloadingPdf}>
+                                <Download size={16} style={{ marginRight: 7 }} />
+                                {downloadingPdf ? 'Preparing PDF...' : 'Download Application PDF'}
+                            </button>
+                        )}
+                        <button
+                            type="button"
+                            className="portal-button portal-button-secondary"
+                            onClick={() => navigate('/student/applications')}
+                        >
+                            <ArrowLeft size={16} style={{ marginRight: '7px', verticalAlign: 'middle' }} />
+                            My Applications
+                        </button>
+                    </div>
 
                 </div>
 

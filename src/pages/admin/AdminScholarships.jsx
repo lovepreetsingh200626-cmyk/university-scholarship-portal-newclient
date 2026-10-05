@@ -2362,6 +2362,15 @@ const AdminScholarships = () => {
                 }
 
 
+                .admin-modal > form {
+                    display: flex;
+                    flex: 1;
+                    flex-direction: column;
+                    min-height: 0;
+                    overflow: hidden;
+                }
+
+
                 .admin-modal-header {
                     display: flex;
                     align-items: flex-start;
@@ -2401,6 +2410,7 @@ const AdminScholarships = () => {
 
                 .admin-modal-body {
                     flex: 1;
+                    min-height: 0;
                     overflow-y: auto;
                     padding: 22px;
                 }
@@ -2451,6 +2461,7 @@ const AdminScholarships = () => {
 
                 .admin-modal-footer {
                     display: flex;
+                    flex: 0 0 auto;
                     justify-content: flex-end;
                     gap: 10px;
                     padding: 15px 22px;

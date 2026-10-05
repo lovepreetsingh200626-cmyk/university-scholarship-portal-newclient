@@ -68,7 +68,7 @@ const AdminLogin = () => {
             setLoading(true);
 
             const data =
-                await authService.loginStudent(
+                await authService.loginAdmin(
                     email.trim(),
                     password
                 );

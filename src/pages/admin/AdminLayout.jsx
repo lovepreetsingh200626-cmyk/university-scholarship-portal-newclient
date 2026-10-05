@@ -14,6 +14,7 @@ import {
     GraduationCap,
     Users,
     Settings,
+    FileCheck2,
     LogOut,
     Menu,
     X,
@@ -73,6 +74,11 @@ const AdminLayout = () => {
             label: 'Applications',
             path: '/admin/applications',
             icon: FileText
+        },
+        {
+            label: 'Freeship Cards',
+            path: '/admin/freeship-cards',
+            icon: FileCheck2
         },
         {
             label: 'Scholarships',
