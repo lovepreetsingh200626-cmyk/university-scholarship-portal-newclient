@@ -1,0 +1,23 @@
+.scheme-guides-page { min-height: 100vh; background: #f4f7fb; color: #15233b; padding-bottom: 48px; }
+.scheme-guides-header { height: 68px; padding: 0 max(24px, calc((100% - 1080px)/2)); background: #fff; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; }
+.scheme-guides-back, .scheme-guides-brand { display: inline-flex; align-items: center; gap: 9px; color: #284569; text-decoration: none; font-weight: 650; }
+.scheme-guides-brand { color: #142c4d; }
+.scheme-guides-hero { max-width: 1080px; margin: 0 auto; padding: 56px 24px 28px; }
+.scheme-guides-eyebrow { color: #32705d; font-size: 12px; font-weight: 800; letter-spacing: .12em; }
+.scheme-guides-hero h1 { margin: 10px 0; font-size: clamp(30px, 4vw, 42px); letter-spacing: -.03em; }
+.scheme-guides-hero p { max-width: 650px; margin: 0; color: #596a80; line-height: 1.65; }
+.scheme-guides-list { max-width: 1080px; margin: 0 auto; padding: 0 24px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.scheme-guide-card { background: #fff; border: 1px solid #e1e8ef; border-radius: 16px; padding: 24px; box-shadow: 0 10px 30px rgba(26, 49, 79, .045); }
+.scheme-guide-card-top { display: flex; align-items: center; justify-content: space-between; }
+.scheme-guide-icon { width: 42px; height: 42px; display: grid; place-items: center; color: #246b55; background: #e9f5ef; border-radius: 12px; }
+.scheme-guide-tag { color: #456177; background: #f0f4f8; padding: 6px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; letter-spacing: .06em; }
+.scheme-guide-card h2 { margin: 19px 0 9px; font-size: 21px; line-height: 1.3; }
+.scheme-guide-card p { min-height: 67px; margin: 0 0 16px; color: #5b6c80; font-size: 14px; line-height: 1.6; }
+.scheme-guide-card small { display: block; color: #6b7786; font-size: 11px; line-height: 1.5; min-height: 34px; }
+.scheme-guide-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; padding-top: 17px; margin-top: 15px; border-top: 1px solid #edf1f5; }
+.scheme-guide-actions a { display: inline-flex; align-items: center; gap: 7px; text-decoration: none; font-size: 13px; font-weight: 700; }
+.scheme-guide-download { color: white; background: #215c49; border-radius: 8px; padding: 10px 13px; }
+.scheme-guides-note { max-width: 1032px; margin: 22px auto 0; padding: 0 24px; color: #687587; font-size: 12px; line-height: 1.65; }
+@media (min-width: 1100px) { .portal-home-service-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (min-width: 821px) and (max-width: 1099px) { .portal-home-service-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 700px) { .scheme-guides-header { padding: 0 18px; } .scheme-guides-hero { padding: 38px 18px 24px; } .scheme-guides-list { grid-template-columns: 1fr; padding: 0 18px; } .scheme-guide-card p, .scheme-guide-card small { min-height: auto; } .scheme-guides-note { padding: 0 18px; } }

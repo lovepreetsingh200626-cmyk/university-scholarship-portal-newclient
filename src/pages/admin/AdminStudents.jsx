@@ -14,7 +14,8 @@ import {
     RefreshCw,
     CheckCircle2,
     XCircle,
-    ChevronRight
+    ChevronRight,
+    Trash2
 } from 'lucide-react';
 
 import {
@@ -25,6 +26,7 @@ import API from '../../services/api';
 
 import authService
     from '../../services/authService';
+import AdminDeletionDialog from '../../components/admin/AdminDeletionDialog';
 
 
 const AdminStudents = () => {
@@ -51,6 +53,9 @@ const AdminStudents = () => {
 
     const [error, setError] =
         useState('');
+
+    const [selectedStudentIds, setSelectedStudentIds] = useState([]);
+    const [deletionOpen, setDeletionOpen] = useState(false);
 
 
     /* ============================================================
@@ -342,6 +347,35 @@ const AdminStudents = () => {
 
     };
 
+    const toggleStudent = (id) => {
+        if (selectedStudentIds.includes(id)) {
+            setSelectedStudentIds((current) => current.filter((value) => value !== id));
+            return;
+        }
+        if (selectedStudentIds.length >= 100) {
+            setError('Select no more than 100 students for one deletion request.');
+            return;
+        }
+        setError('');
+        setSelectedStudentIds((current) => [...current, id]);
+    };
+
+    const toggleVisibleStudents = () => {
+        const visibleIds = filteredStudents.map((student) => student._id);
+        const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedStudentIds.includes(id));
+        if (allVisibleSelected) {
+            setSelectedStudentIds((current) => current.filter((id) => !visibleIds.includes(id)));
+            return;
+        }
+        const combined = [...new Set([...selectedStudentIds, ...visibleIds])];
+        if (combined.length > 100) {
+            setError('Select no more than 100 students for one deletion request.');
+            return;
+        }
+        setError('');
+        setSelectedStudentIds(combined);
+    };
+
 
     /* ============================================================
        RENDER
@@ -440,27 +474,17 @@ const AdminStudents = () => {
                 </div>
 
 
-                <button
-                    type="button"
-                    className="portal-button portal-button-secondary"
-                    onClick={() =>
-                        fetchStudents(true)
-                    }
-                    disabled={
-                        refreshing
-                    }
-                    style={{
-                        display:
-                            'inline-flex',
-                        alignItems:
-                            'center',
-                        gap: '7px',
-                        padding:
-                            '9px 14px',
-                        fontSize:
-                            '13px'
-                    }}
-                >
+                <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap' }}>
+                    {selectedStudentIds.length > 0 && <button type="button" className="portal-button" onClick={() => setDeletionOpen(true)} style={{ background: '#b91c1c', color: '#fff', display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 14px', fontSize: 13 }}>
+                        <Trash2 size={15} /> Delete selected ({selectedStudentIds.length})
+                    </button>}
+                    <button
+                        type="button"
+                        className="portal-button portal-button-secondary"
+                        onClick={() => fetchStudents(true)}
+                        disabled={refreshing}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '9px 14px', fontSize: '13px' }}
+                    >
 
                     <RefreshCw
                         size={15}
@@ -477,7 +501,8 @@ const AdminStudents = () => {
                         : 'Refresh'
                     }
 
-                </button>
+                    </button>
+                </div>
 
             </div>
 
@@ -1034,6 +1059,10 @@ const AdminStudents = () => {
                                     }}
                                 >
 
+                                    <th style={{ textAlign: 'center', padding: '11px 10px', width: 40 }}>
+                                        <input aria-label="Select all visible students" type="checkbox" checked={filteredStudents.length > 0 && filteredStudents.every((student) => selectedStudentIds.includes(student._id))} onChange={toggleVisibleStudents} />
+                                    </th>
+
                                     <th
                                         style={{
                                             textAlign:
@@ -1214,6 +1243,10 @@ const AdminStudents = () => {
                                                         '1px solid #eef2f7'
                                                 }}
                                             >
+
+                                                <td style={{ padding: '12px 10px', textAlign: 'center' }}>
+                                                    <input aria-label={`Select ${student.name}`} type="checkbox" checked={selectedStudentIds.includes(student._id)} onChange={() => toggleStudent(student._id)} />
+                                                </td>
 
                                                 {/* STUDENT */}
 
@@ -1628,6 +1661,18 @@ const AdminStudents = () => {
 
             )}
 
+
+            <AdminDeletionDialog
+                open={deletionOpen}
+                targetType="students"
+                targetIds={selectedStudentIds}
+                itemLabel="student accounts"
+                onClose={() => {
+                    setDeletionOpen(false);
+                    setSelectedStudentIds([]);
+                }}
+                onComplete={() => fetchStudents(true)}
+            />
 
             {/* ====================================================
                RESPONSIVE / ANIMATION CSS

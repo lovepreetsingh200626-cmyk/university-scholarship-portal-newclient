@@ -103,6 +103,9 @@ import AdminFreeshipCards
 import PortalHome
     from './pages/PortalHome';
 
+import SchemeGuides
+    from './pages/SchemeGuides';
+
 
 /* ============================================================
    GLOBAL STYLES
@@ -1355,6 +1358,11 @@ const App = () => {
                     }
                 />
 
+                <Route
+                    path="/scheme-guides"
+                    element={<SchemeGuides />}
+                />
+
 
                 <Route
                     path="/login"
@@ -1369,6 +1377,11 @@ const App = () => {
                     element={
                         <ForgotPassword />
                     }
+                />
+
+                <Route
+                    path="/admin/forgot-password"
+                    element={<ForgotPassword accountType="admin" />}
                 />
 
 

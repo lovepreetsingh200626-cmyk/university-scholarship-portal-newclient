@@ -41,6 +41,7 @@ const PortalHome = () => {
                     <div className="portal-home-container portal-home-nav-inner">
                         <Link className="active" to="/">Home</Link>
                         <Link to="/student/scholarships">Scholarship Schemes</Link>
+                        <Link to="/scheme-guides">SC / OBC Guidelines</Link>
                         <Link to="/student/freeship-card">Freeship Card</Link>
                         <Link to="/student/applications">Track Application</Link>
                         <a href="#notices">Notices &amp; Help</a>
@@ -88,6 +89,13 @@ const PortalHome = () => {
                             <p>Sign in to save your information and return to your application at any time.</p>
                         </div>
                         <div className="portal-home-service-grid">
+                            <article className="portal-home-service-card">
+                                <div className="portal-home-service-icon"><BookOpen size={22} /></div>
+                                <span className="portal-home-service-kicker">SC / OBC / EBC / DNT</span>
+                                <h3>Read scheme guides</h3>
+                                <p>Download redesigned post-matric scholarship summaries for students.</p>
+                                <button type="button" onClick={() => navigate('/scheme-guides')}>Open scheme guides <ArrowRight size={15} /></button>
+                            </article>
                             <article className="portal-home-service-card">
                                 <div className="portal-home-service-icon"><GraduationCap size={22} /></div>
                                 <span className="portal-home-service-kicker">SCHOLARSHIPS</span>

@@ -65,13 +65,15 @@ const loginAdmin = async (
     return response.data;
 };
 
-const requestPasswordReset = async (email) => {
-    const response = await API.post('/auth/forgot-password', { email });
+const requestPasswordReset = async (accountRole, accountId, mobile, email) => {
+    const identity = accountRole === 'admin' ? { adminId: accountId } : { studentId: accountId };
+    const response = await API.post('/auth/forgot-password', { accountRole, ...identity, mobile, email });
     return response.data;
 };
 
-const resetPassword = async (email, otp, newPassword) => {
-    const response = await API.post('/auth/reset-password', { email, otp, newPassword });
+const resetPassword = async (accountRole, accountId, mobile, email, otp, newPassword) => {
+    const identity = accountRole === 'admin' ? { adminId: accountId } : { studentId: accountId };
+    const response = await API.post('/auth/reset-password', { accountRole, ...identity, mobile, email, otp, newPassword });
     return response.data;
 };
 

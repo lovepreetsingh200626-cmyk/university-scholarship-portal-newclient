@@ -14,7 +14,7 @@ const formatDate = (value) => {
 
 const courseText = (course) => {
     if (!course) return '—';
-    return [course.course, course.branch, course.year].filter(Boolean).join(' / ') || '—';
+    return [course.faculty, course.course, course.branch, course.year, course.academicSession].filter(Boolean).join(' / ') || '—';
 };
 
 const documentLabel = (type) => ({
@@ -135,6 +135,7 @@ const StudentProfile = () => {
                             <Detail label="Mother's name" value={personal.motherName} />
                             <Detail label="Annual family income" value={personal.annualFamilyIncome === null || personal.annualFamilyIncome === undefined || personal.annualFamilyIncome === '' ? '—' : '₹' + Number(personal.annualFamilyIncome).toLocaleString('en-IN')} />
                             <Detail label="Category" value={personal.category} />
+                            <Detail label="Permanent domicile State / UT" value={personal.domicileState} />
                         </Section>
 
                         <Section title="Address">

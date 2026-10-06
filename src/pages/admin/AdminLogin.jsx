@@ -547,6 +547,10 @@ const AdminLogin = () => {
 
                         </form>
 
+                        <div style={{ textAlign: 'right', marginTop: 12 }}>
+                            <Link to="/admin/forgot-password" style={{ color: '#174a8b', fontWeight: 700, fontSize: 13 }}>Forgot administrator password?</Link>
+                        </div>
+
 
                         {/* =========================================
                             SECURITY NOTICE

@@ -15,6 +15,9 @@ import {
 } from 'lucide-react';
 import API from '../../services/api';
 import authService from '../../services/authService';
+import { INDIAN_STATES } from '../../data/statesData';
+import { ACADEMIC_SESSIONS } from '../../data/sessionsData';
+import { UNIVERSITY_FACULTIES_HIERARCHY } from '../../data/coursesData';
 import './FreeshipCard.css';
 
 const DOCUMENTS = [
@@ -31,10 +34,10 @@ const EMPTY_APPLICATION = {
     personalDetails: {
         fullName: '', aadhaarNumber: '', dateOfBirth: '', fatherName: '', motherName: '',
         annualFamilyIncome: '', category: '', applicantId: '', mobile: '', email: '',
-        village: '', postOffice: '', tehsil: '', district: '', state: '', pinCode: ''
+        village: '', postOffice: '', tehsil: '', district: '', state: '', domicileState: '', pinCode: ''
     },
     courseDetails: {
-        presentlyStudying: { course: '', branch: '', year: '' },
+        presentlyStudying: { course: '', branch: '', year: '', faculty: '', facultyId: '', academicSession: '' },
         lastClassStudied: { course: '', branch: '', year: '' },
         previousClassStudied: { course: '', branch: '', year: '' }
     },
@@ -87,6 +90,59 @@ const CourseSection = ({ title, value, disabled, onChange }) => (
         </div>
     </div>
 );
+
+const PresentCourseSection = ({ value = {}, disabled, onChange }) => {
+    const selectedFaculty = UNIVERSITY_FACULTIES_HIERARCHY.find((item) => item.id === value.facultyId);
+    const selectedDepartment = selectedFaculty?.departments.find((item) => item.name === value.branch);
+    const isOther = value.facultyId === 'OTHER' || (!value.facultyId && Boolean(value.course));
+
+    return (
+        <div className="fsc-course-block">
+            <h3>Course presently studying</h3>
+            <div className="fsc-grid fsc-grid-three">
+                <Field label="Faculty" required>
+                    <select className="fsc-input" value={isOther ? 'OTHER' : value.facultyId || ''} disabled={disabled} required onChange={(event) => {
+                        const next = UNIVERSITY_FACULTIES_HIERARCHY.find((item) => item.id === event.target.value);
+                        onChange('facultyId', event.target.value);
+                        onChange('faculty', next?.name || (event.target.value === 'OTHER' ? 'Other / not listed' : ''));
+                        onChange('branch', ''); onChange('course', '');
+                    }}>
+                        <option value="">Select faculty</option>
+                        {UNIVERSITY_FACULTIES_HIERARCHY.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                        <option value="OTHER">Other / not listed</option>
+                    </select>
+                </Field>
+                {isOther ? (
+                    <Field label="Department / school" required><input className="fsc-input" value={value.branch || ''} onChange={(event) => onChange('branch', event.target.value)} disabled={disabled} required /></Field>
+                ) : (
+                    <Field label="Department" required>
+                        <select className="fsc-input" value={value.branch || ''} disabled={disabled || !selectedFaculty} required onChange={(event) => { onChange('branch', event.target.value); onChange('course', ''); }}>
+                            <option value="">Select department</option>
+                            {selectedFaculty?.departments.map((item) => <option key={item.name} value={item.name}>{item.name}</option>)}
+                        </select>
+                    </Field>
+                )}
+                {isOther ? (
+                    <Field label="Programme / course" required><input className="fsc-input" value={value.course || ''} onChange={(event) => onChange('course', event.target.value)} disabled={disabled} required /></Field>
+                ) : (
+                    <Field label="Programme / course" required>
+                        <select className="fsc-input" value={value.course || ''} disabled={disabled || !selectedDepartment} required onChange={(event) => onChange('course', event.target.value)}>
+                            <option value="">Select programme</option>
+                            {selectedDepartment?.programmes.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
+                        </select>
+                    </Field>
+                )}
+                <Field label="Year of study" required><input className="fsc-input" value={value.year || ''} onChange={(event) => onChange('year', event.target.value)} disabled={disabled} required placeholder="e.g. 1st year" /></Field>
+                <Field label="Programme cohort / batch" required>
+                    <select className="fsc-input" value={value.academicSession || ''} disabled={disabled} required onChange={(event) => onChange('academicSession', event.target.value)}>
+                        <option value="">Select cohort</option>
+                        {ACADEMIC_SESSIONS.map((session) => <option key={session.id} value={session.id}>{session.name}</option>)}
+                    </select>
+                </Field>
+            </div>
+        </div>
+    );
+};
 
 const FreeshipCard = () => {
     const navigate = useNavigate();
@@ -373,7 +429,7 @@ const FreeshipCard = () => {
                                     <div><span>Mother’s name</span><strong>{application.personalDetails?.motherName || '—'}</strong></div>
                                     <div><span>Annual family income</span><strong>{application.personalDetails?.annualFamilyIncome ? `₹${Number(application.personalDetails.annualFamilyIncome).toLocaleString('en-IN')}` : '—'}</strong></div>
                                     <div><span>Category</span><strong>{application.personalDetails?.category || '—'}</strong></div>
-                                    <div><span>Present course</span><strong>{[application.courseDetails?.presentlyStudying?.course, application.courseDetails?.presentlyStudying?.branch, application.courseDetails?.presentlyStudying?.year].filter(Boolean).join(' / ') || '—'}</strong></div>
+                                    <div><span>Present course</span><strong>{[application.courseDetails?.presentlyStudying?.faculty, application.courseDetails?.presentlyStudying?.course, application.courseDetails?.presentlyStudying?.branch, application.courseDetails?.presentlyStudying?.year, application.courseDetails?.presentlyStudying?.academicSession].filter(Boolean).join(' / ') || '—'}</strong></div>
                                     <div><span>Last class studied</span><strong>{[application.courseDetails?.lastClassStudied?.course, application.courseDetails?.lastClassStudied?.branch, application.courseDetails?.lastClassStudied?.year].filter(Boolean).join(' / ') || '—'}</strong></div>
                                     <div><span>Previous class studied</span><strong>{[application.courseDetails?.previousClassStudied?.course, application.courseDetails?.previousClassStudied?.branch, application.courseDetails?.previousClassStudied?.year].filter(Boolean).join(' / ') || '—'}</strong></div>
                                     <div><span>Uploaded certificates</span><strong>{(application.documents || []).map((document) => DOCUMENTS.find((item) => item.key === document.documentType)?.label).filter(Boolean).join(', ') || '—'}</strong></div>
@@ -397,6 +453,12 @@ const FreeshipCard = () => {
                             <Field label="Mother’s name" required><input className="fsc-input" value={application.personalDetails.motherName || ''} onChange={(e) => updatePersonal('motherName', e.target.value)} disabled={!editable} required /></Field>
                             <Field label="Annual family income" required><input className="fsc-input" type="number" min="0" value={application.personalDetails.annualFamilyIncome ?? ''} onChange={(e) => updatePersonal('annualFamilyIncome', e.target.value)} disabled={!editable} required /></Field>
                             <Field label="Category" required><select className="fsc-input" value={application.personalDetails.category || ''} onChange={(e) => updatePersonal('category', e.target.value)} disabled={!editable} required><option value="">Select category</option>{['SC', 'ST', 'OBC', 'EBC', 'DNT', 'Other'].map((category) => <option key={category} value={category}>{category}</option>)}</select></Field>
+                            <Field label="Permanent domicile State / UT" required>
+                                <select className="fsc-input" value={application.personalDetails.domicileState || ''} onChange={(e) => updatePersonal('domicileState', e.target.value)} disabled={!editable} required>
+                                    <option value="">Select domicile State / UT</option>
+                                    {INDIAN_STATES.map((state) => <option key={state} value={state}>{state}</option>)}
+                                </select>
+                            </Field>
                             <Field label="Student ID"><input className="fsc-input fsc-input-locked" value={application.personalDetails.applicantId || ''} readOnly /></Field>
                             <Field label="Mobile number"><input className="fsc-input fsc-input-locked" value={application.personalDetails.mobile || ''} readOnly /></Field>
                             <Field label="Email address"><input className="fsc-input fsc-input-locked" type="email" value={application.personalDetails.email || ''} readOnly /></Field>
@@ -412,7 +474,14 @@ const FreeshipCard = () => {
                                 ['state', 'State', true], ['pinCode', 'PIN code', true]
                             ].map(([key, label, required]) => (
                                 <Field key={key} label={label} required={required}>
-                                    <input className="fsc-input" value={application.personalDetails[key] || ''} onChange={(e) => updatePersonal(key, key === 'pinCode' ? e.target.value.replace(/\D/g, '').slice(0, 6) : e.target.value)} disabled={!editable} required={required} inputMode={key === 'pinCode' ? 'numeric' : undefined} maxLength={key === 'pinCode' ? 6 : 120} pattern={key === 'pinCode' ? '[0-9]{6}' : undefined} />
+                            {key === 'state' ? (
+                                <select className="fsc-input" value={application.personalDetails[key] || ''} onChange={(e) => updatePersonal(key, e.target.value)} disabled={!editable} required={required}>
+                                    <option value="">Select address State / UT</option>
+                                    {INDIAN_STATES.map((state) => <option key={state} value={state}>{state}</option>)}
+                                </select>
+                            ) : (
+                                <input className="fsc-input" value={application.personalDetails[key] || ''} onChange={(e) => updatePersonal(key, key === 'pinCode' ? e.target.value.replace(/\D/g, '').slice(0, 6) : e.target.value)} disabled={!editable} required={required} inputMode={key === 'pinCode' ? 'numeric' : undefined} maxLength={key === 'pinCode' ? 6 : 120} pattern={key === 'pinCode' ? '[0-9]{6}' : undefined} />
+                            )}
                                 </Field>
                             ))}
                         </div>
@@ -420,7 +489,7 @@ const FreeshipCard = () => {
 
                     <section className="fsc-panel">
                         <div className="fsc-section-heading"><span>03</span><div><h2>Course history</h2><p>Enter course, branch or stream, and year for each education stage.</p></div></div>
-                        <CourseSection title="Course presently studying" value={application.courseDetails.presentlyStudying} disabled={!editable} onChange={(key, value) => updateCourse('presentlyStudying', key, value)} />
+                        <PresentCourseSection value={application.courseDetails.presentlyStudying} disabled={!editable} onChange={(key, value) => updateCourse('presentlyStudying', key, value)} />
                         <CourseSection title="Course / class last studied" value={application.courseDetails.lastClassStudied} disabled={!editable} onChange={(key, value) => updateCourse('lastClassStudied', key, value)} />
                         <CourseSection title="Course / class previously studied" value={application.courseDetails.previousClassStudied} disabled={!editable} onChange={(key, value) => updateCourse('previousClassStudied', key, value)} />
                     </section>

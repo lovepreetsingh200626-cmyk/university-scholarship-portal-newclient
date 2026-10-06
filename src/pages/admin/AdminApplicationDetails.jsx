@@ -15,7 +15,8 @@ import {
     GraduationCap,
     WalletCards,
     Building2,
-    Loader2
+    Loader2,
+    Trash2
 } from 'lucide-react';
 
 import {
@@ -25,6 +26,7 @@ import {
 
 import API from '../../services/api';
 import authService from '../../services/authService';
+import AdminDeletionDialog from '../../components/admin/AdminDeletionDialog';
 
 const AdminApplicationDetails = () => {
     const {
@@ -60,6 +62,8 @@ const AdminApplicationDetails = () => {
 
     const [rejectionReason, setRejectionReason] =
         useState('');
+
+    const [deletionOpen, setDeletionOpen] = useState(false);
 
     /* ========================================================
        FETCH APPLICATION
@@ -1049,13 +1053,13 @@ const AdminApplicationDetails = () => {
                         </div>
                     </div>
 
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {application && <button type="button" className="portal-button" onClick={() => setDeletionOpen(true)} style={{ background: '#b91c1c', color: '#fff' }}>
+                        <Trash2 size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} /> Delete application
+                    </button>}
                     <button
                         className="portal-button portal-button-secondary"
-                        onClick={() =>
-                            navigate(
-                                '/admin/applications'
-                            )
-                        }
+                        onClick={() => navigate('/admin/applications')}
                     >
                         <ArrowLeft
                             size={17}
@@ -1068,6 +1072,7 @@ const AdminApplicationDetails = () => {
                         />
                         Back
                     </button>
+                    </div>
                 </div>
             </header>
 
@@ -2418,6 +2423,15 @@ const AdminApplicationDetails = () => {
                     </aside>
                 </div>
             </main>
+
+            <AdminDeletionDialog
+                open={deletionOpen}
+                targetType="scholarshipApplications"
+                targetIds={application?._id ? [application._id] : []}
+                itemLabel="scholarship application"
+                onClose={() => setDeletionOpen(false)}
+                onComplete={() => navigate('/admin/applications', { replace: true })}
+            />
 
             <style>
                 {`
