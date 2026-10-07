@@ -136,12 +136,12 @@ const AdminFreeshipCards = () => {
                                     ['Annual income', selected.personalDetails?.annualFamilyIncome != null ? `₹${Number(selected.personalDetails.annualFamilyIncome).toLocaleString('en-IN')}` : '—'],
                                     ['Category', selected.personalDetails?.category || '—'],
                                     ['Present course', [selected.courseDetails?.presentlyStudying?.course, selected.courseDetails?.presentlyStudying?.branch, selected.courseDetails?.presentlyStudying?.year].filter(Boolean).join(' / ') || '—'],
-                                    ['Last class studied', [selected.courseDetails?.lastClassStudied?.course, selected.courseDetails?.lastClassStudied?.branch, selected.courseDetails?.lastClassStudied?.year].filter(Boolean).join(' / ') || '—'],
+
                                     ['Previous class studied', [selected.courseDetails?.previousClassStudied?.course, selected.courseDetails?.previousClassStudied?.branch, selected.courseDetails?.previousClassStudied?.year].filter(Boolean).join(' / ') || '—'],
                                     ['Scheme provisions acknowledged', selected.declarations?.hasReadGuidelines === true ? 'Yes' : 'No'],
                                     ['Information declared accurate', selected.declarations?.informationAccurate === true ? 'Yes' : 'No'],
                                     ['Reimbursement undertaking', selected.declarations?.undertakeReimbursement === true ? 'Yes' : 'No'],
-                                    ['Address', [selected.personalDetails?.village, selected.personalDetails?.postOffice, selected.personalDetails?.tehsil, selected.personalDetails?.district, selected.personalDetails?.state, selected.personalDetails?.pinCode].filter(Boolean).join(', ') || '—']
+                                    ['Address', [selected.personalDetails?.village, selected.personalDetails?.postOffice, selected.personalDetails?.tehsil, selected.personalDetails?.block, selected.personalDetails?.district, selected.personalDetails?.state, selected.personalDetails?.pinCode].filter(Boolean).join(', ') || '—']
                                 ].map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}
                             </div>
                             <div className="fsc-admin-files"><h3>Submitted certificates</h3>{(selected.documents || []).length === 0 ? <p>No documents uploaded.</p> : selected.documents.map((document) => <div className="fsc-admin-file" key={document.documentType}><span><FileCheck2 size={16} />{document.documentType.replace(/([A-Z])/g, ' $1')}</span><button type="button" onClick={() => downloadDocument(document)} disabled={Boolean(downloadingType)}><Download size={15} />{downloadingType === document.documentType ? 'Loading…' : 'Download'}</button></div>)}</div>

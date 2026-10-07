@@ -731,6 +731,11 @@
 .fsc-input:focus { border-color: #3282a2; box-shadow: 0 0 0 3px rgba(50, 130, 162, .11); }
 .fsc-input:disabled { color: #556a7d; background: #f4f7f9; }
 .fsc-input-locked { color: #53697c; background: #f4f7f9; cursor: not-allowed; }
+.fsc-post-office-results { display: flex; flex-direction: column; max-height: 220px; overflow-y: auto; border: 1px solid #d6e0e8; border-radius: 9px; background: #fff; box-shadow: 0 8px 20px rgba(24, 45, 65, .08); }
+.fsc-post-office-results button { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; border: 0; border-bottom: 1px solid #edf1f4; padding: 10px 12px; background: transparent; color: #18344d; text-align: left; cursor: pointer; }
+.fsc-post-office-results button:last-child { border-bottom: 0; }
+.fsc-post-office-results button:hover, .fsc-post-office-results button:focus-visible { background: #f2f8fb; outline: none; }
+.fsc-post-office-results button span:last-child { flex: none; color: #61778a; font-size: .86em; }
 
 .fsc-course-block + .fsc-course-block {
     margin-top: 18px;

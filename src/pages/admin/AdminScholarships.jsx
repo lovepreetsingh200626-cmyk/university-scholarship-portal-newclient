@@ -21,6 +21,24 @@ import {
 import API from '../../services/api';
 import authService from '../../services/authService';
 
+const SCHOLARSHIP_SCHEME_CATEGORIES = [
+    'Pre-Matric',
+    'Post-Matric',
+    'Top Class',
+    'Merit-cum-Means (MCM)',
+    'Post-Matric / Top Class / MCM',
+    'Other NSP Scheme'
+];
+
+const inferSchemeCategory = (name = '') => {
+    const normalized = String(name).toLowerCase();
+    if (/pre[\s-]*matric/.test(normalized)) return 'Pre-Matric';
+    if (/top[\s-]*class/.test(normalized)) return 'Top Class';
+    if (/merit[\s-]*cum[\s-]*means|\bmcm\b/.test(normalized)) return 'Merit-cum-Means (MCM)';
+    if (/post[\s-]*matric/.test(normalized)) return 'Post-Matric';
+    return 'Other NSP Scheme';
+};
+
 
 /* ============================================================
    ADMIN SCHOLARSHIPS
@@ -65,6 +83,7 @@ const AdminScholarships = () => {
 
     const initialForm = {
         name: '',
+        schemeCategory: '',
         description: '',
         academicYear: '',
         eligibleCourses: '',
@@ -242,6 +261,9 @@ const AdminScholarships = () => {
                 scholarship.name ||
                 '',
 
+            schemeCategory:
+                scholarship.schemeCategory || inferSchemeCategory(scholarship.name),
+
             description:
                 scholarship.description ||
                 '',
@@ -363,6 +385,10 @@ const AdminScholarships = () => {
             return 'Scholarship name is required.';
         }
 
+        if (!SCHOLARSHIP_SCHEME_CATEGORIES.includes(form.schemeCategory)) {
+            return 'Scholarship category / scheme level is required.';
+        }
+
         if (
             !form.description.trim()
         ) {
@@ -452,6 +478,9 @@ const AdminScholarships = () => {
 
                 name:
                     form.name.trim(),
+
+                schemeCategory:
+                    form.schemeCategory,
 
                 description:
                     form.description.trim(),
@@ -1502,6 +1531,30 @@ const AdminScholarships = () => {
                                                 }
                                                 placeholder="Example: Post-Matric Scholarship"
                                             />
+
+                                        </div>
+
+
+                                        <div>
+
+                                            <label className="portal-label">
+                                                Scholarship Category / Scheme Level *
+                                            </label>
+
+                                            <select
+                                                name="schemeCategory"
+                                                className="portal-select"
+                                                value={form.schemeCategory}
+                                                onChange={handleChange}
+                                            >
+                                                <option value="">Select scheme level</option>
+                                                {SCHOLARSHIP_SCHEME_CATEGORIES.map((category) => (
+                                                    <option key={category} value={category}>{category}</option>
+                                                ))}
+                                            </select>
+                                            <small style={{ display: 'block', marginTop: 5, color: '#64748b' }}>
+                                                This is the scheme level shown to applicants, separate from their caste/community category.
+                                            </small>
 
                                         </div>
 

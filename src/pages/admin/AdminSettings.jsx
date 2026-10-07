@@ -14,7 +14,9 @@ import {
     Mail,
     Phone,
     CalendarDays,
-    KeyRound
+    KeyRound,
+    FileSignature,
+    Trash2,
 } from 'lucide-react';
 
 import API from '../../services/api';
@@ -45,6 +47,11 @@ const AdminSettings = () => {
 
     const [passwordMessage, setPasswordMessage] =
         useState('');
+
+    const [adminSignature, setAdminSignature] = useState(null);
+    const [signatureMessage, setSignatureMessage] = useState('');
+    const [savingSignature, setSavingSignature] = useState(false);
+    const [pendingSignature, setPendingSignature] = useState(null);
 
     const [error, setError] =
         useState('');
@@ -198,6 +205,15 @@ const AdminSettings = () => {
     };
 
 
+    const fetchAdminSignature = async () => {
+        try {
+            const response = await API.get('/admin/settings/signature');
+            setAdminSignature(response.data?.signature || null);
+        } catch (signatureError) {
+            console.error('Admin signature load error:', signatureError);
+        }
+    };
+
     /* ========================================================
        INITIAL LOAD
     ======================================================== */
@@ -205,6 +221,7 @@ const AdminSettings = () => {
     useEffect(() => {
 
         fetchProfile();
+        fetchAdminSignature();
 
     }, []);
 
@@ -238,6 +255,59 @@ const AdminSettings = () => {
     };
 
 
+    const handleSignatureUpload = (event) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (!file) return;
+        if (!['image/png', 'image/jpeg'].includes(file.type)) { setSignatureMessage('Choose a PNG or JPEG image file.'); return; }
+        if (file.size > 500 * 1024) { setSignatureMessage('The signature image must be 500 KB or smaller.'); return; }
+        const reader = new FileReader();
+        reader.onerror = () => setSignatureMessage('Unable to read this image file.');
+        reader.onload = () => {
+            const source = new Image();
+            source.onerror = () => setSignatureMessage('This image could not be decoded. Try exporting it again as a standard PNG.');
+            source.onload = () => {
+                try {
+                    const scale = Math.max(Math.min(1, 2400 / source.naturalWidth, 800 / source.naturalHeight), Math.max(100 / source.naturalWidth, 20 / source.naturalHeight));
+                    const width = Math.max(100, Math.min(2400, Math.round(source.naturalWidth * scale)));
+                    const height = Math.max(20, Math.min(800, Math.round(source.naturalHeight * scale)));
+                    const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+                    const context = canvas.getContext('2d'); if (!context) throw new Error('Unable to prepare the signature image.');
+                    if (file.type === 'image/jpeg') { context.fillStyle = '#ffffff'; context.fillRect(0, 0, width, height); }
+                    context.drawImage(source, 0, 0, width, height);
+                    const dataUrl = canvas.toDataURL(file.type, file.type === 'image/jpeg' ? 0.92 : undefined); const encoded = dataUrl.split(',')[1] || '';
+                    if (Math.floor(encoded.length * 3 / 4) > 500 * 1024) throw new Error('The prepared image is over 500 KB. Crop it closer to the signature and try again.');
+                    setPendingSignature({ dataUrl }); setSignatureMessage('Signature ready. Select Save signature to apply it.');
+                } catch (imageError) { setSignatureMessage(imageError.message || 'Unable to prepare the signature image.'); }
+            };
+            source.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleSignatureSubmit = async () => {
+        if (!pendingSignature?.dataUrl) return;
+        setSavingSignature(true); setSignatureMessage('');
+        try {
+            const response = await API.put('/admin/settings/signature', { dataUrl: pendingSignature.dataUrl });
+            setAdminSignature(response.data?.signature || null); setPendingSignature(null);
+            setSignatureMessage(response.data?.message || 'Admin signature saved.');
+        } catch (uploadError) { setSignatureMessage(uploadError.response?.data?.message || uploadError.message || 'Unable to save the signature image.'); }
+        finally { setSavingSignature(false); }
+    };
+    const handleSignatureRemove = async () => {
+        setSavingSignature(true);
+        setSignatureMessage('');
+        try {
+            const response = await API.delete('/admin/settings/signature');
+            setAdminSignature(null);
+            setSignatureMessage(response.data?.message || 'Admin signature removed.');
+        } catch (removeError) {
+            setSignatureMessage(removeError.response?.data?.message || 'Unable to remove the signature image.');
+        } finally {
+            setSavingSignature(false);
+        }
+    };
     /* ========================================================
        PASSWORD INPUT
     ======================================================== */
@@ -1002,6 +1072,22 @@ const AdminSettings = () => {
                     </section>
 
 
+                    <section className="admin-settings-card admin-settings-signature-card">
+                        <div className="admin-settings-card-header">
+                            <div className="admin-settings-card-icon"><FileSignature size={22} /></div>
+                            <div><h2>PDF Administrator Signature</h2><p>Signature used on scholarship and Freeship PDFs.</p></div>
+                        </div>
+                        <div className="admin-settings-signature-content">
+                            <p>Choose a PNG or JPEG (500 KB maximum). Saving applies it to future approvals; existing approved Freeship Cards keep their original reviewer. This is a visual signature, not a certificate-backed PDF signature.</p>
+                            {(pendingSignature || adminSignature) && <div className="admin-settings-signature-preview"><img src={pendingSignature?.dataUrl || adminSignature.dataUrl} alt="Administrator signature preview" /><span>{pendingSignature ? 'Ready to save' : <>Configured for <strong>{adminSignature.name}</strong></>}</span></div>}
+                            <div className="admin-settings-signature-actions">
+                                <label className="admin-settings-signature-file">{pendingSignature ? 'Choose a different image' : adminSignature ? 'Replace signature image' : 'Choose signature image'}<input type="file" accept="image/png,image/jpeg,.png,.jpg,.jpeg" onChange={handleSignatureUpload} disabled={savingSignature} /></label>
+                                {pendingSignature && <button type="button" className="admin-settings-primary-btn" onClick={handleSignatureSubmit} disabled={savingSignature}>{savingSignature ? 'Saving...' : 'Save signature'}</button>}
+                                {adminSignature && !pendingSignature && <button type="button" className="portal-button portal-button-secondary" onClick={handleSignatureRemove} disabled={savingSignature}><Trash2 size={16} /> Remove</button>}
+                            </div>
+                            {signatureMessage && <p className="admin-settings-signature-message" role="status">{signatureMessage}</p>}
+                        </div>
+                    </section>
                     {/* ==================================================
                         ACCOUNT INFORMATION
                     ================================================== */}
@@ -1737,6 +1823,14 @@ const pageStyles = `
     }
 }
 
+.admin-settings-signature-content { padding: 14px 20px 18px; }
+.admin-settings-signature-content > p { margin: 0 0 12px; color: #64748b; font-size: 12px; line-height: 1.5; }
+.admin-settings-signature-preview { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; padding: 8px 10px; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; color: #475569; font-size: 12px; }
+.admin-settings-signature-preview img { display: block; width: 120px; height: 36px; max-width: 40%; object-fit: contain; background: #fff; border: 1px solid #e2e8f0; border-radius: 5px; }
+.admin-settings-signature-actions { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.admin-settings-signature-file { display: inline-flex; align-items: center; min-height: 38px; padding: 0 12px; border: 1px solid #cbd5e1; border-radius: 8px; color: #334155; font-size: 12px; font-weight: 700; cursor: pointer; }
+.admin-settings-signature-file input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); clip-path: inset(50%); white-space: nowrap; }
+.admin-settings-signature-message { margin: 10px 0 0 !important; font-size: 12px !important; }
 @media (max-width: 900px) {
 
     .admin-settings-grid {

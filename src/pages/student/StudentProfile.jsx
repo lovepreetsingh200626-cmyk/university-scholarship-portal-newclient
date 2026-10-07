@@ -149,7 +149,7 @@ const StudentProfile = () => {
 
                         <Section title="Course history">
                             <Detail label="Present course" value={courseText(courses.presentlyStudying)} />
-                            <Detail label="Last class studied" value={courseText(courses.lastClassStudied)} />
+
                             <Detail label="Previous class studied" value={courseText(courses.previousClassStudied)} />
                         </Section>
 

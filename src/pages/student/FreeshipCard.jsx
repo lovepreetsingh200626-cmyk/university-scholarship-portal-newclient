@@ -34,11 +34,11 @@ const EMPTY_APPLICATION = {
     personalDetails: {
         fullName: '', aadhaarNumber: '', dateOfBirth: '', fatherName: '', motherName: '',
         annualFamilyIncome: '', category: '', applicantId: '', mobile: '', email: '',
-        village: '', postOffice: '', tehsil: '', district: '', state: '', domicileState: '', pinCode: ''
+        village: '', postOffice: '', tehsil: '', block: '', district: '', state: '', domicileState: '', pinCode: ''
     },
     courseDetails: {
         presentlyStudying: { course: '', branch: '', year: '', faculty: '', facultyId: '', academicSession: '' },
-        lastClassStudied: { course: '', branch: '', year: '' },
+
         previousClassStudied: { course: '', branch: '', year: '' }
     },
     declarations: { hasReadGuidelines: null, informationAccurate: null, undertakeReimbursement: null },
@@ -155,6 +155,13 @@ const FreeshipCard = () => {
     const [photoPreview, setPhotoPreview] = useState('');
     const [error, setError] = useState('');
     const [notice, setNotice] = useState('');
+    const [locationData, setLocationData] = useState(null);
+    const [postOfficeQuery, setPostOfficeQuery] = useState('');
+    const [postOfficeOptions, setPostOfficeOptions] = useState([]);
+    const [postOfficeLoading, setPostOfficeLoading] = useState(false);
+    const [districtCustom, setDistrictCustom] = useState(false);
+    const [tehsilCustom, setTehsilCustom] = useState(false);
+    const [blockCustom, setBlockCustom] = useState(false);
 
     useEffect(() => {
         const user = authService.getCurrentUser();
@@ -168,10 +175,15 @@ const FreeshipCard = () => {
         }
 
         let active = true;
-        API.get('/freeship-cards/me')
-            .then((response) => {
+        Promise.all([
+            API.get('/freeship-cards/me'),
+            import('../../data/igodLocationData.json').catch(() => ({ default: { states: {} } }))
+        ])
+            .then(([response, locationsModule]) => {
                 if (!active) return;
                 const data = response.data?.application || EMPTY_APPLICATION;
+                const locations = locationsModule.default || locationsModule;
+                setLocationData(locations);
                 setApplication({
                     ...EMPTY_APPLICATION,
                     ...data,
@@ -179,6 +191,12 @@ const FreeshipCard = () => {
                     courseDetails: { ...EMPTY_APPLICATION.courseDetails, ...data.courseDetails },
                     declarations: { ...EMPTY_APPLICATION.declarations, ...data.declarations }
                 });
+                setPostOfficeQuery(data.personalDetails?.postOffice || '');
+                const locationState = locations.states?.[data.personalDetails?.state];
+                const locationDistrict = locationState?.districts.find((item) => item.name === data.personalDetails?.district);
+                setDistrictCustom(Boolean(data.personalDetails?.district && !locationDistrict));
+                setTehsilCustom(Boolean(data.personalDetails?.tehsil && !locationDistrict?.subdistricts?.includes(data.personalDetails.tehsil)));
+                setBlockCustom(Boolean(data.personalDetails?.block && !locationDistrict?.blocks?.includes(data.personalDetails.block)));
             })
             .catch((requestError) => {
                 if (active) setError(requestError.response?.data?.message || 'Unable to load your freeship card application.');
@@ -189,6 +207,42 @@ const FreeshipCard = () => {
     }, [navigate]);
 
     const editable = ['DRAFT', 'REJECTED'].includes(application.status);
+
+    const addressState = application.personalDetails.state || '';
+    const districtList = locationData?.states?.[addressState]?.districts || [];
+    const districtOptions = districtList.map((item) => item.name);
+    const selectedDistrict = districtList.find((item) => item.name === application.personalDetails.district);
+    const subDistrictOptions = selectedDistrict?.subdistricts || [];
+    const blockOptions = selectedDistrict?.blocks || [];
+
+    useEffect(() => {
+        const query = postOfficeQuery.trim();
+        if (!addressState || query.length < 2) {
+            setPostOfficeOptions([]);
+            setPostOfficeLoading(false);
+            return undefined;
+        }
+
+        let active = true;
+        const timer = window.setTimeout(() => {
+            setPostOfficeLoading(true);
+            API.get('/freeship-cards/post-offices', { params: { state: addressState, q: query } })
+                .then((response) => {
+                    if (active) setPostOfficeOptions(response.data?.offices || []);
+                })
+                .catch(() => {
+                    if (active) setPostOfficeOptions([]);
+                })
+                .finally(() => {
+                    if (active) setPostOfficeLoading(false);
+                });
+        }, 250);
+
+        return () => {
+            active = false;
+            window.clearTimeout(timer);
+        };
+    }, [addressState, postOfficeQuery]);
 
     const updatePersonal = (key, value) => {
         setApplication((current) => ({
@@ -430,10 +484,10 @@ const FreeshipCard = () => {
                                     <div><span>Annual family income</span><strong>{application.personalDetails?.annualFamilyIncome ? `₹${Number(application.personalDetails.annualFamilyIncome).toLocaleString('en-IN')}` : '—'}</strong></div>
                                     <div><span>Category</span><strong>{application.personalDetails?.category || '—'}</strong></div>
                                     <div><span>Present course</span><strong>{[application.courseDetails?.presentlyStudying?.faculty, application.courseDetails?.presentlyStudying?.course, application.courseDetails?.presentlyStudying?.branch, application.courseDetails?.presentlyStudying?.year, application.courseDetails?.presentlyStudying?.academicSession].filter(Boolean).join(' / ') || '—'}</strong></div>
-                                    <div><span>Last class studied</span><strong>{[application.courseDetails?.lastClassStudied?.course, application.courseDetails?.lastClassStudied?.branch, application.courseDetails?.lastClassStudied?.year].filter(Boolean).join(' / ') || '—'}</strong></div>
+
                                     <div><span>Previous class studied</span><strong>{[application.courseDetails?.previousClassStudied?.course, application.courseDetails?.previousClassStudied?.branch, application.courseDetails?.previousClassStudied?.year].filter(Boolean).join(' / ') || '—'}</strong></div>
                                     <div><span>Uploaded certificates</span><strong>{(application.documents || []).map((document) => DOCUMENTS.find((item) => item.key === document.documentType)?.label).filter(Boolean).join(', ') || '—'}</strong></div>
-                                    <div className="fsc-card-address"><span>Address</span><strong>{[application.personalDetails?.village, application.personalDetails?.postOffice, application.personalDetails?.tehsil, application.personalDetails?.district, application.personalDetails?.state, application.personalDetails?.pinCode].filter(Boolean).join(', ') || '—'}</strong></div>
+                                    <div className="fsc-card-address"><span>Address</span><strong>{[application.personalDetails?.village, application.personalDetails?.postOffice, application.personalDetails?.tehsil, application.personalDetails?.block, application.personalDetails?.district, application.personalDetails?.state, application.personalDetails?.pinCode].filter(Boolean).join(', ') || '—'}</strong></div>
                                 </div>
                             </div>
                             <div className="fsc-card-footer"><span>Approved {formatDate(application.reviewedAt)}</span><span>Application ID: {application.applicationNumber}</span></div>
@@ -468,29 +522,92 @@ const FreeshipCard = () => {
                     <section className="fsc-panel">
                         <div className="fsc-section-heading"><span>02</span><div><h2>Address details</h2><p>Enter the address to be printed on the card.</p></div></div>
                         <div className="fsc-grid fsc-grid-three">
-                            {[
-                                ['village', 'Village / address', true], ['postOffice', 'Post office', false],
-                                ['tehsil', 'Tehsil', true], ['district', 'District', true],
-                                ['state', 'State', true], ['pinCode', 'PIN code', true]
-                            ].map(([key, label, required]) => (
-                                <Field key={key} label={label} required={required}>
-                            {key === 'state' ? (
-                                <select className="fsc-input" value={application.personalDetails[key] || ''} onChange={(e) => updatePersonal(key, e.target.value)} disabled={!editable} required={required}>
+                            <Field label="Village / address" required><input className="fsc-input" value={application.personalDetails.village || ''} onChange={(e) => updatePersonal('village', e.target.value)} disabled={!editable} required maxLength={120} /></Field>
+                            <Field label="State / UT" required>
+                                <select className="fsc-input" value={addressState} onChange={(e) => {
+                                    const nextState = e.target.value;
+                                    setPostOfficeQuery('');
+                                    setPostOfficeOptions([]);
+                                    setDistrictCustom(false);
+                                    setTehsilCustom(false);
+                                    setBlockCustom(false);
+                                    setApplication((current) => ({
+                                        ...current,
+                                        personalDetails: { ...current.personalDetails, state: nextState, district: '', tehsil: '', block: '', postOffice: '', pinCode: '' }
+                                    }));
+                                }} disabled={!editable} required>
                                     <option value="">Select address State / UT</option>
                                     {INDIAN_STATES.map((state) => <option key={state} value={state}>{state}</option>)}
                                 </select>
-                            ) : (
-                                <input className="fsc-input" value={application.personalDetails[key] || ''} onChange={(e) => updatePersonal(key, key === 'pinCode' ? e.target.value.replace(/\D/g, '').slice(0, 6) : e.target.value)} disabled={!editable} required={required} inputMode={key === 'pinCode' ? 'numeric' : undefined} maxLength={key === 'pinCode' ? 6 : 120} pattern={key === 'pinCode' ? '[0-9]{6}' : undefined} />
-                            )}
-                                </Field>
-                            ))}
+                            </Field>
+                            <Field label="District" required>
+                                <select className="fsc-input" value={districtCustom ? '__other' : (districtOptions.includes(application.personalDetails.district) ? application.personalDetails.district : '')} onChange={(e) => {
+                                    const isOther = e.target.value === '__other';
+                                    setPostOfficeQuery('');
+                                    setPostOfficeOptions([]);
+                                    setDistrictCustom(isOther);
+                                    setTehsilCustom(isOther);
+                                    setBlockCustom(isOther);
+                                    setApplication((current) => ({ ...current, personalDetails: { ...current.personalDetails, district: isOther ? '' : e.target.value, tehsil: '', block: '', postOffice: '', pinCode: '' } }));
+                                }} disabled={!editable || !addressState} required>
+                                    <option value="">{addressState ? 'Select district' : 'Select a state first'}</option>
+                                    {districtOptions.map((district) => <option key={district} value={district}>{district}</option>)}
+                                    <option value="__other">Other / not listed</option>
+                                </select>
+                                {districtCustom && (
+                                    <input className="fsc-input" style={{ marginTop: 8 }} value={application.personalDetails.district || ''} onChange={(e) => updatePersonal('district', e.target.value)} disabled={!editable} required maxLength={120} placeholder="Enter your district" aria-label="Enter district not listed" />
+                                )}
+                                <small>Districts, sub-districts, and blocks are sourced from the current iGOD directory; use “Other / not listed” if a place is missing.</small>
+                            </Field>
+                            <Field label="Sub-district / Tehsil" required>
+                                <select className="fsc-input" value={tehsilCustom ? '__other' : (subDistrictOptions.includes(application.personalDetails.tehsil) ? application.personalDetails.tehsil : '')} onChange={(e) => {
+                                    const isOther = e.target.value === '__other';
+                                    setTehsilCustom(isOther);
+                                    updatePersonal('tehsil', isOther ? '' : e.target.value);
+                                }} disabled={!editable || !application.personalDetails.district || districtCustom} required>
+                                    <option value="">{application.personalDetails.district ? 'Select sub-district / tehsil' : 'Select a district first'}</option>
+                                    {subDistrictOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+                                    <option value="__other">Other / not listed</option>
+                                </select>
+                                {(tehsilCustom || districtCustom) && <input className="fsc-input" style={{ marginTop: 8 }} value={application.personalDetails.tehsil || ''} onChange={(e) => updatePersonal('tehsil', e.target.value)} disabled={!editable} required maxLength={120} placeholder="Enter sub-district / tehsil" aria-label="Enter sub-district or tehsil not listed" />}
+                            </Field>
+                            <Field label="Development block">
+                                <select className="fsc-input" value={blockCustom ? '__other' : (blockOptions.includes(application.personalDetails.block) ? application.personalDetails.block : '')} onChange={(e) => {
+                                    const isOther = e.target.value === '__other';
+                                    setBlockCustom(isOther);
+                                    updatePersonal('block', isOther ? '' : e.target.value);
+                                }} disabled={!editable || !application.personalDetails.district || districtCustom}>
+                                    <option value="">{application.personalDetails.district ? 'Select block (optional)' : 'Select a district first'}</option>
+                                    {blockOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+                                    <option value="__other">Other / not listed</option>
+                                </select>
+                                {(blockCustom || districtCustom) && <input className="fsc-input" style={{ marginTop: 8 }} value={application.personalDetails.block || ''} onChange={(e) => updatePersonal('block', e.target.value)} disabled={!editable} maxLength={120} placeholder="Enter block" aria-label="Enter block not listed" />}
+                            </Field>
+                            <Field label="Post office">
+                                <input className="fsc-input" value={postOfficeQuery} onChange={(e) => {
+                                    const query = e.target.value;
+                                    setPostOfficeQuery(query);
+                                    updatePersonal('postOffice', query);
+                                }} disabled={!editable || !addressState} maxLength={120} placeholder={addressState ? 'Search office name or PIN (2+ characters)' : 'Select a state first'} />
+                                {postOfficeLoading && <small>Searching post offices…</small>}
+                                {postOfficeOptions.length > 0 && <div className="fsc-post-office-results" role="listbox" aria-label="Post office suggestions">
+                                    {postOfficeOptions.map((office) => <button type="button" role="option" aria-selected="false" key={`${office.name}-${office.pinCode}-${office.officeType}`} onClick={() => {
+                                        setPostOfficeQuery(office.name);
+                                        setPostOfficeOptions([]);
+                                        updatePersonal('postOffice', office.name);
+                                        updatePersonal('pinCode', office.pinCode);
+                                    }}><span>{office.name}</span><span>{office.pinCode} · {office.officeType}</span></button>)}
+                                </div>}
+                                <small>Choose a suggestion to fill the PIN, or enter the post office and PIN manually.</small>
+                            </Field>
+                            <Field label="PIN code" required><input className="fsc-input" value={application.personalDetails.pinCode || ''} onChange={(e) => updatePersonal('pinCode', e.target.value.replace(/\D/g, '').slice(0, 6))} disabled={!editable} required inputMode="numeric" maxLength={6} pattern="[0-9]{6}" /></Field>
                         </div>
                     </section>
 
                     <section className="fsc-panel">
                         <div className="fsc-section-heading"><span>03</span><div><h2>Course history</h2><p>Enter course, branch or stream, and year for each education stage.</p></div></div>
                         <PresentCourseSection value={application.courseDetails.presentlyStudying} disabled={!editable} onChange={(key, value) => updateCourse('presentlyStudying', key, value)} />
-                        <CourseSection title="Course / class last studied" value={application.courseDetails.lastClassStudied} disabled={!editable} onChange={(key, value) => updateCourse('lastClassStudied', key, value)} />
+
                         <CourseSection title="Course / class previously studied" value={application.courseDetails.previousClassStudied} disabled={!editable} onChange={(key, value) => updateCourse('previousClassStudied', key, value)} />
                     </section>
 

@@ -1352,13 +1352,15 @@ const AdminApplicationDetails = () => {
                                 {[
                                     ['Student ID', applicant.studentId || student.studentId],
                                     ['Application Type', applicant.applicationType],
+                                    ['Marital Status', applicant.maritalStatus],
                                     ["Father's Name", applicant.fatherName],
                                     ["Mother's Name", applicant.motherName],
+                                    ["Parent's Profession", applicant.parentProfession],
                                     ['Religion', applicant.religion],
+                                    ['Divyangjan', applicant.divyangjan],
                                     ['Special Category', applicant.specialCategory],
+                                    ['Special Category Type', applicant.specialCategory === 'Yes' ? applicant.specialCategoryType : 'Not applicable'],
                                     ['Aadhaar (masked)', applicant.aadhaarNumber],
-                                    ['De-Notified Tribes', applicant.deNotifiedTribes],
-                                    ['Tribes', applicant.tribes]
                                 ].map(([label, value]) => (
                                     <InfoItem key={label} label={label} value={value || 'Not provided'} />
                                 ))}
@@ -1446,14 +1448,6 @@ const AdminApplicationDetails = () => {
                                 />
 
                                 <InfoItem
-                                    label="Department"
-                                    value={
-                                        applicant.department ||
-                                        'Not provided'
-                                    }
-                                />
-
-                                <InfoItem
                                     label="Academic Year"
                                     value={
                                         applicant.academicYear ||
@@ -1465,14 +1459,6 @@ const AdminApplicationDetails = () => {
                                     label="Current Semester"
                                     value={
                                         applicant.currentSemester ??
-                                        'Not provided'
-                                    }
-                                />
-
-                                <InfoItem
-                                    label="Previous Qualification"
-                                    value={
-                                        applicant.previousQualification ||
                                         'Not provided'
                                     }
                                 />
@@ -1491,20 +1477,62 @@ const AdminApplicationDetails = () => {
 
                                 {[
                                     ['Institute', applicant.institute],
+                                    ['Institute State', applicant.instituteState],
+                                    ['Institute District', applicant.instituteDistrict],
                                     ['Tehsil', applicant.tehsil],
+                                    ['Class / Course Start Date', applicant.classStartDate ? new Date(applicant.classStartDate).toLocaleDateString() : ''],
+                                    ['Present Year / Class', applicant.presentYear],
+                                    ['Section', applicant.section],
+                                    ['Mode of Study', applicant.modeOfStudy],
                                     ['Hosteller', applicant.hosteller],
+                                    ['Enrollment Year', applicant.enrollmentYear],
+                                    ['Previous Board / University', applicant.previousBoard],
+                                    ['Previous Passing Year', applicant.previousPassingYear],
                                     ['10th Class Board', applicant.class10Board],
                                     ['10th Class Session', applicant.class10Session],
                                     ['10th Class Roll Number', applicant.class10RollNumber],
+                                    ['10th Class Percentage', applicant.class10Percentage !== null && applicant.class10Percentage !== undefined ? `${applicant.class10Percentage}%` : ''],
+                                    ['12th Class Board', applicant.class12Board],
+                                    ['12th Passing Year', applicant.class12PassingYear],
+                                    ['12th Class Roll Number', applicant.class12RollNumber],
+                                    ['12th Class Percentage', applicant.class12Percentage !== null && applicant.class12Percentage !== undefined ? `${applicant.class12Percentage}%` : ''],
                                     ['Enrollment', applicant.enrollment],
                                     ['Admission Date', applicant.admissionDate ? new Date(applicant.admissionDate).toLocaleDateString() : ''],
                                     ['Attendance', applicant.attendance !== null && applicant.attendance !== undefined ? `${applicant.attendance}%` : ''],
                                     ['Admit Card', applicant.admitCard],
                                     ['Examination Year', applicant.examinationYear],
-                                    ['Promoted', applicant.promoted]
+                                    ['Promoted', applicant.promoted],
+                                    ['Competitive Exam Qualified', applicant.competitiveExamQualified],
+                                    ['Competitive Exam Conducted By', applicant.competitiveExamConductedBy],
+                                    ['Competitive Exam Roll Number', applicant.competitiveExamRollNumber],
+                                    ['Competitive Exam Year', applicant.competitiveExamYear]
                                 ].map(([label, value]) => (
                                     <InfoItem key={label} label={label} value={value || 'Not provided'} />
                                 ))}
+                            </DetailGrid>
+                        </SectionCard>
+
+                        <SectionCard icon={<FileText size={20} />} title="Application Specific Details">
+                            <DetailGrid>
+                                {[
+                                    ['Domicile State ID Number', applicant.domicileStateIdentificationNumber],
+                                    ['Member Number', applicant.memberNumber],
+                                    ['Name as per Domicile ID', applicant.nameAsPerDomicileId]
+                                ].map(([label, value]) => <InfoItem key={label} label={label} value={value || 'Not provided'} />)}
+                            </DetailGrid>
+                        </SectionCard>
+
+                        <SectionCard icon={<FileText size={20} />} title="Scheme Specific Details">
+                            <DetailGrid>
+                                {[
+                                    ['State of Domicile', applicant.domicileState || applicant.state],
+                                    ['De-Notified Tribes', applicant.deNotifiedTribes],
+                                    ['Tribes / Community', applicant.tribes],
+                                    ['Home District', applicant.homeDistrict],
+                                    ['Home Sub-District', applicant.subDistrict],
+                                    ['Village', applicant.village],
+                                    ['PIN Code', applicant.pinCode]
+                                ].map(([label, value]) => <InfoItem key={label} label={label} value={value || 'Not provided'} />)}
                             </DetailGrid>
                         </SectionCard>
 
